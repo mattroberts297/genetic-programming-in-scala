@@ -25,36 +25,47 @@ object Main extends App with Logging {
 //  log.debug(s"rightTree: $rightTree")
 //  log.debug(s"crossover: ${Trees.crossover(leftTree, rightTree)}")
 
-  def loop(run: Int, trees: Seq[Exp], expected: Seq[(Map[Symbol, Float], Float)]): Exp = {
-    log.debug(s"Run $run")
-    val treesAndFitness = trees.map(tree => (tree, Trees.fitness(tree, expected)))
-    val sorted = treesAndFitness.sortBy { case (_, fitness) => fitness }
-    val (topTree, topFitness) = sorted.head
-    if (topFitness < 0.1f || run == 10000) {
-      topTree
-    } else {
-      val sortedTrees = sorted.map { case (tree, _) =>
-        tree
-      }
-      val bestQuarter = sortedTrees.take(sortedTrees.length / 4)
-      val newTreesA = bestQuarter.map { tree =>
-        Trees.crossover(tree, bestQuarter(Random.nextInt(bestQuarter.length)))
-      }
-      val newTreesB = bestQuarter.map { tree =>
-        Trees.crossover(bestQuarter(Random.nextInt(bestQuarter.length)), tree)
-      }
-      val oldTrees = bestQuarter ++ sortedTrees.takeRight(sortedTrees.length / 4)
-      loop(run + 1, newTreesA ++ newTreesB ++ oldTrees, expected)
-    }
-  }
 
   val expected = (-1f).to(1f, 0.05f).map(x => (Map('x -> x), x * x + x + 1))
   val population = 1000
   val terminalSet = constants ++ variables
   val functionSet = functions
-  val firstTrees = 1.to(population).map(_ => Trees.full(5, functionSet, terminalSet))
+  val firstTrees = Trees.rampHalfHalf(population, 4, functionSet, terminalSet).toVector
+  log.debug(s"Generated ${firstTrees.length} trees")
+  firstTrees.foreach(t => log.debug(s"$t"))
+
+  def tournament(a: (Exp, Float), b: (Exp, Float)): Exp = {
+    val (aExp, aFit) = a
+    val (bExp, bFit) = b
+    if (aFit < bFit) aExp else bExp
+  }
+
+  def random[T](elements: IndexedSeq[T]): T = {
+    elements(Random.nextInt(elements.length))
+  }
+
+  def loop(run: Int, trees: IndexedSeq[Exp], expected: Seq[(Map[Symbol, Float], Float)]): Exp = {
+    log.debug(s"Run $run")
+    val treesAndFitness = trees.map(tree => tree -> Trees.fitness(tree, expected))
+    val sortedTreesAndFitness = treesAndFitness.sortBy { case (_, fitness) => fitness }
+    val sortedTrees = treesAndFitness.map { case (tree, _) => tree }
+    val (topTree, topFitness) = sortedTreesAndFitness.head
+    if (topFitness < 0.1f || run == 1000) {
+      topTree
+    } else {
+      val crossoverTrees = 1.to(trees.length / 4 * 3).map { _ =>
+        Trees.crossover(
+          tournament(random(treesAndFitness), random(treesAndFitness)),
+          tournament(random(treesAndFitness), random(treesAndFitness)),
+          functions)
+      }
+      val replicateTrees = sortedTrees.take(trees.length / 4)
+      loop(run + 1, crossoverTrees ++ replicateTrees, expected)
+    }
+  }
+
   val fitTree = loop(1, firstTrees, expected)
-  log.debug(s"Fit tree: ${fitTree}")
+  log.debug(s"Fittest tree: ${fitTree}")
   log.debug("expected\t\tactual")
   expected.foreach { case (symbols, expected) =>
     log.debug(s"${expected}\t${fitTree.eval(symbols)}")
@@ -62,6 +73,22 @@ object Main extends App with Logging {
 }
 
 object Trees {
+  // I suspect fitness calc. Cos smaller is better... and that prob means prob is wrong.
+  // I think there is something wrong with this or the fitness / probs calc.
+  def random[T](elements: Seq[T], probs: Seq[Float]): T = {
+    val random = rand()
+    var cumProb = 0f
+    val cumProbs = probs.map { p =>
+      cumProb = cumProb + p
+      cumProb
+    }
+    elements.zip(cumProbs).find { case (_, p) =>
+      p > random
+    }.map { case (e, _) =>
+      e
+    }.getOrElse(elements.last)
+  }
+
   def full(depth: Int, functions: IndexedSeq[(Exp, Exp) => Exp], terminals: IndexedSeq[Exp]): Exp = {
     def loop(i: Int): Exp = {
       if (i == depth) {
@@ -73,17 +100,83 @@ object Trees {
     loop(0)
   }
 
-  def crossover(left: Exp, right: Exp): Exp = {
-    val lefts = collect(left)
-    val rights = collectOps(right)
-    val leftSubtree = lefts(Random.nextInt(lefts.length))
-    val rightSubtree = rights(Random.nextInt(rights.length))
-    rightSubtree match {
-      case Add(_, rhs) => Add(leftSubtree, rhs)
-      case Sub(_, rhs) => Sub(leftSubtree, rhs)
-      case Mul(_, rhs) => Mul(leftSubtree, rhs)
-      case Div(_, rhs) => Div(leftSubtree, rhs)
+  def grow(depth: Int, functions: IndexedSeq[(Exp, Exp) => Exp], terminals: IndexedSeq[Exp]): Exp = {
+    def randomStop: Boolean = {
+      rand() < terminals.length.toFloat / (terminals.length + functions.length)
     }
+    def loop(i: Int): Exp = {
+      if (i == depth || randomStop) {
+        terminals(Random.nextInt(terminals.length))
+      } else {
+        functions(Random.nextInt(functions.length))(loop(i + 1), loop(i + 1))
+      }
+    }
+    loop(0)
+  }
+
+  def rampHalfHalf(
+      count: Int,
+      maxDepth: Int,
+      functions: IndexedSeq[(Exp, Exp) => Exp],
+      terminals: IndexedSeq[Exp]): Set[Exp] = {
+    def loop(acc: Set[Exp], i: Int, depth: Int): Set[Exp] = {
+      if(i == count) {
+        acc
+      } else {
+        val tree = if (i % 2 == 0) {
+          full(depth, functions, terminals)
+        } else {
+          grow(depth, functions, terminals)
+        }
+        val nextDepth = if (depth == maxDepth) maxDepth else depth + 1
+        if (acc.contains(tree)) {
+          loop(acc, i, nextDepth)
+        } else {
+          loop(acc + tree, i + 1, nextDepth)
+        }
+      }
+    }
+    loop(Set.empty, 0, 1)
+  }
+
+  def rand(): Float = Random.nextFloat()
+
+  def crossover(left: Exp, right: Exp, functions: IndexedSeq[(Exp, Exp) => Exp]): Exp = {
+    val lefts = biasedCollect(left)
+    val rights = biasedCollect(right)
+    val lhs = lefts(Random.nextInt(lefts.length))
+    val rhs = rights(Random.nextInt(rights.length))
+    (lhs, rhs) match {
+      case (Add(lhs, _), _) => Add(lhs, rhs)
+      case (Sub(lhs, _), _) => Sub(lhs, rhs)
+      case (Mul(lhs, _), _) => Mul(lhs, rhs)
+      case (Div(lhs, _), _) => Div(lhs, rhs)
+      case (_, Add(_, rhs)) => Add(lhs, rhs)
+      case (_, Sub(_, rhs)) => Add(lhs, rhs)
+      case (_, Mul(_, rhs)) => Add(lhs, rhs)
+      case (_, Div(_, rhs)) => Add(lhs, rhs)
+      case (lhs, rhs) => functions(Random.nextInt(functions.length))(lhs, rhs)
+    }
+  }
+
+  private def biasedCollect(tree: Exp): IndexedSeq[Exp] = {
+    val ops = collectOps(tree)
+    if (rand() > 0.9 || ops.isEmpty) {
+      collectTerminals(tree)
+    } else {
+      ops
+    }
+  }
+
+  private def collectTerminals(tree: Exp): IndexedSeq[Exp] = {
+    def collect(acc: IndexedSeq[Exp], subtree: Exp): IndexedSeq[Exp] = {
+      subtree match {
+        case v: Var => IndexedSeq(v) ++ acc
+        case c: Con => IndexedSeq(c) ++ acc
+        case o: BinOp => collect(acc, o.lhs) ++ collect(acc, o.rhs)
+      }
+    }
+    collect(IndexedSeq.empty, tree)
   }
 
   private def collect(tree: Exp): IndexedSeq[Exp] = {
@@ -98,8 +191,8 @@ object Trees {
     collect(IndexedSeq.empty, tree)
   }
 
-  private def collectOps(tree: Exp): IndexedSeq[BinOp] = {
-    def collectOps(acc: IndexedSeq[BinOp], subtree: Exp): IndexedSeq[BinOp] = {
+  private def collectOps(tree: Exp): IndexedSeq[Exp with BinOp] = {
+    def collectOps(acc: IndexedSeq[Exp with BinOp], subtree: Exp): IndexedSeq[Exp with BinOp] = {
       subtree match {
         case v: Var => acc
         case c: Con => acc
@@ -112,7 +205,7 @@ object Trees {
 
   def fitness(tree: Exp, expected: Seq[(Map[Symbol, Float], Float)]): Float = {
     expected.foldLeft(0f) { case (acc, (symbols, expected)) =>
-      acc + Math.abs(expected - tree.eval(symbols))
+      acc + Math.pow((expected - tree.eval(symbols)), 2).toFloat
     }
   }
 }
