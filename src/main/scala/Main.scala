@@ -11,28 +11,12 @@ object Main extends App with Logging {
   val constants = Constants.range(-5f, 5f, 1f)
   val variables = IndexedSeq(Var('x))
   val functions = IndexedSeq(Add, Sub, Div, Mul)
-//  val tree = Add(Add(Mul(Var('x), Var('x)), Var('x)), Con(1))
-//
-//  log.debug(s"Tree: $tree")
-//  log.debug(s"Tree.eval(x -> 0): ${tree.eval(Map('x -> 0))}")
-//  log.debug(s"Tree.eval(x -> 0.5): ${tree.eval(Map('x -> 0.5f))}")
-//  log.debug(s"Tree.eval(x -> 1): ${tree.eval(Map('x -> 1))}")
-//  log.debug(s"Tree.eval(x -> 2): ${tree.eval(Map('x -> 2))}")
-//
-//  val leftTree = Trees.full(3, functions, variables ++ constants)
-//  log.debug(s"leftTree: $leftTree")
-//  val rightTree = Trees.full(3, functions, variables ++ constants)
-//  log.debug(s"rightTree: $rightTree")
-//  log.debug(s"crossover: ${Trees.crossover(leftTree, rightTree)}")
-
 
   val expected = (-1f).to(1f, 0.05f).map(x => (Map('x -> x), x * x + x + 1))
   val population = 1000
   val terminalSet = constants ++ variables
   val functionSet = functions
   val firstTrees = Trees.rampHalfHalf(population, 4, functionSet, terminalSet).toVector
-  log.debug(s"Generated ${firstTrees.length} trees")
-  firstTrees.foreach(t => log.debug(s"$t"))
 
   def tournament(a: (Exp, Float), b: (Exp, Float)): Exp = {
     val (aExp, aFit) = a
@@ -73,22 +57,6 @@ object Main extends App with Logging {
 }
 
 object Trees {
-  // I suspect fitness calc. Cos smaller is better... and that prob means prob is wrong.
-  // I think there is something wrong with this or the fitness / probs calc.
-  def random[T](elements: Seq[T], probs: Seq[Float]): T = {
-    val random = rand()
-    var cumProb = 0f
-    val cumProbs = probs.map { p =>
-      cumProb = cumProb + p
-      cumProb
-    }
-    elements.zip(cumProbs).find { case (_, p) =>
-      p > random
-    }.map { case (e, _) =>
-      e
-    }.getOrElse(elements.last)
-  }
-
   def full(depth: Int, functions: IndexedSeq[(Exp, Exp) => Exp], terminals: IndexedSeq[Exp]): Exp = {
     def loop(i: Int): Exp = {
       if (i == depth) {
@@ -128,7 +96,7 @@ object Trees {
         } else {
           grow(depth, functions, terminals)
         }
-        val nextDepth = if (depth == maxDepth) maxDepth else depth + 1
+        val nextDepth = if (depth == maxDepth) 1 else depth + 1
         if (acc.contains(tree)) {
           loop(acc, i, nextDepth)
         } else {
@@ -142,8 +110,8 @@ object Trees {
   def rand(): Float = Random.nextFloat()
 
   def crossover(left: Exp, right: Exp, functions: IndexedSeq[(Exp, Exp) => Exp]): Exp = {
-    val lefts = biasedCollect(left)
-    val rights = biasedCollect(right)
+    val lefts = collect(left)
+    val rights = collect(right)
     val lhs = lefts(Random.nextInt(lefts.length))
     val rhs = rights(Random.nextInt(rights.length))
     (lhs, rhs) match {
@@ -155,11 +123,12 @@ object Trees {
       case (_, Sub(_, rhs)) => Add(lhs, rhs)
       case (_, Mul(_, rhs)) => Add(lhs, rhs)
       case (_, Div(_, rhs)) => Add(lhs, rhs)
+      // This last one is actually a mutation. Nature finds a way.
       case (lhs, rhs) => functions(Random.nextInt(functions.length))(lhs, rhs)
     }
   }
 
-  private def biasedCollect(tree: Exp): IndexedSeq[Exp] = {
+  private def collect(tree: Exp): IndexedSeq[Exp] = {
     val ops = collectOps(tree)
     if (rand() > 0.9 || ops.isEmpty) {
       collectTerminals(tree)
@@ -174,18 +143,6 @@ object Trees {
         case v: Var => IndexedSeq(v) ++ acc
         case c: Con => IndexedSeq(c) ++ acc
         case o: BinOp => collect(acc, o.lhs) ++ collect(acc, o.rhs)
-      }
-    }
-    collect(IndexedSeq.empty, tree)
-  }
-
-  private def collect(tree: Exp): IndexedSeq[Exp] = {
-    def collect(acc: IndexedSeq[Exp], subtree: Exp): IndexedSeq[Exp] = {
-      subtree match {
-        case v: Var => IndexedSeq(v) ++ acc
-        case c: Con => IndexedSeq(c) ++ acc
-        case o: BinOp =>
-          IndexedSeq(o) ++ collect(acc, o.lhs) ++ collect(acc, o.rhs)
       }
     }
     collect(IndexedSeq.empty, tree)
