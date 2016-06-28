@@ -8,8 +8,8 @@ import org.slf4s.Logging
 import scala.util.{Random, Try}
 
 object Main extends App with Logging {
-  val population = 1000
-  val maxDepth = 4
+  val population = 10000
+  val maxDepth = 5
   val constants = Constants.range(-5f, 5f, 1f)
   val variables = IndexedSeq(Var('x))
   val functions = IndexedSeq(Add, Sub, Div, Mul)
@@ -30,7 +30,8 @@ object GP extends Logging {
   def run(
       initial: IndexedSeq[Exp],
       expected: Seq[(Map[Symbol, Float], Float)],
-      criteria: Float => Boolean): Exp = {
+      criteria: Float => Boolean,
+      maxRuns: Int = 1000): Exp = {
     @tailrec
     def loop(run: Int, current: IndexedSeq[Exp]): Exp = {
       log.debug(s"Run $run")
@@ -38,7 +39,7 @@ object GP extends Logging {
       val sortedTreesAndFitness = treesAndFitness.sortBy { case (_, fitness) => fitness }
       val sortedTrees = treesAndFitness.map { case (tree, _) => tree }
       val (topTree, topFitness) = sortedTreesAndFitness.head
-      if (criteria(topFitness)) {
+      if (criteria(topFitness) || run > maxRuns) {
         topTree
       } else {
         val crossoverTrees = 1.to(current.length / 4 * 3).flatMap { _ =>
