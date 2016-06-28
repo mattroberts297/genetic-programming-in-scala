@@ -9,11 +9,13 @@ import scala.util.{Random, Try}
 
 object Main extends App with Logging {
   val population = 10000
-  val maxDepth = 5
+  val maxDepth = 10
   val constants = Constants.range(-5f, 5f, 1f)
   val variables = IndexedSeq(Var('x))
   val functions = IndexedSeq(Add, Sub, Div, Mul)
-  val expected = (-1f).to(1f, 0.05f).map(x => (Map('x -> x), x * x + x + 1))
+  def pow(a: Float, b: Float): Float = Math.pow(a, b).toFloat
+  val expected = (-1f).to(1f, 0.05f).map(x => (Map('x -> x), pow(x, 2) - x - 2))
+//  val expected = (-3f).to(3f, 0.05f).map(x => (Map('x -> x), pow(x,3) / 4 + 3 * pow(x, 2) / 4 - 3 * x / 2 - 2))
   val terminalSet = constants ++ variables
   val functionSet = functions
   val trees = GP.rampHalfHalf(population, maxDepth, functionSet, terminalSet).toVector
@@ -27,28 +29,42 @@ object Main extends App with Logging {
 }
 
 object GP extends Logging {
+  @tailrec
+  def retrying[T](thunk: => Option[T]): T = {
+    thunk match {
+      case Some(t) => t
+      case None => retrying(thunk)
+    }
+  }
+
   def run(
       initial: IndexedSeq[Exp],
       expected: Seq[(Map[Symbol, Float], Float)],
       criteria: Float => Boolean,
-      maxRuns: Int = 1000): Exp = {
+      maxRuns: Int = 500): Exp = {
     @tailrec
     def loop(run: Int, current: IndexedSeq[Exp]): Exp = {
-      log.debug(s"Run $run")
       val treesAndFitness = current.map(tree => tree -> fitness(tree, expected))
       val sortedTreesAndFitness = treesAndFitness.sortBy { case (_, fitness) => fitness }
-      val sortedTrees = treesAndFitness.map { case (tree, _) => tree }
-      val (topTree, topFitness) = sortedTreesAndFitness.head
-      if (criteria(topFitness) || run > maxRuns) {
+      val sortedTrees = sortedTreesAndFitness.map { case (tree, _) => tree }
+      val (topTree, minFitness) = sortedTreesAndFitness.head
+      if (criteria(minFitness) || run == maxRuns) {
         topTree
       } else {
-        val crossoverTrees = 1.to(current.length / 4 * 3).flatMap { _ =>
-          crossover(
-            tournament(random(treesAndFitness), random(treesAndFitness)),
-            tournament(random(treesAndFitness), random(treesAndFitness)))
+        // todo: mutation
+        // for some reason as time passes you get more duplicates.
+        val set = mutable.Set.empty[Exp]
+        while (set.size < current.length / 4 * 3) {
+          set += retrying {
+            crossover(
+              tournament(random(treesAndFitness), random(treesAndFitness)),
+              tournament(random(treesAndFitness), random(treesAndFitness)))
+          }
         }
-        val replicateTrees = sortedTrees.take(current.length - crossoverTrees.length)
-        loop(run + 1, crossoverTrees ++ replicateTrees)
+        val crossovers = set.toVector
+        val replicas = sortedTrees.take(current.length - crossovers.length)
+        log.debug(s"run=${run}, minFitness=${minFitness}, length=${current.length} crossovers.length=${crossovers.length}, replicas.length=${replicas.length}")
+        loop(run + 1, crossovers ++ replicas)
       }
     }
     loop(1, initial)
@@ -96,6 +112,7 @@ object GP extends Logging {
       maxDepth: Int,
       functions: IndexedSeq[(Exp, Exp) => Exp],
       terminals: IndexedSeq[Exp]): Set[Exp] = {
+    @tailrec
     def loop(acc: Set[Exp], i: Int, depth: Int): Set[Exp] = {
       if(i == count) {
         acc
@@ -127,9 +144,9 @@ object GP extends Logging {
       case (Mul(lhs, _), _) => Some(Mul(lhs, rhs))
       case (Div(lhs, _), _) => Some(Div(lhs, rhs))
       case (_, Add(_, rhs)) => Some(Add(lhs, rhs))
-      case (_, Sub(_, rhs)) => Some(Add(lhs, rhs))
-      case (_, Mul(_, rhs)) => Some(Add(lhs, rhs))
-      case (_, Div(_, rhs)) => Some(Add(lhs, rhs))
+      case (_, Sub(_, rhs)) => Some(Sub(lhs, rhs))
+      case (_, Mul(_, rhs)) => Some(Mul(lhs, rhs))
+      case (_, Div(_, rhs)) => Some(Div(lhs, rhs))
       case (lhs, rhs) => None
     }
   }
