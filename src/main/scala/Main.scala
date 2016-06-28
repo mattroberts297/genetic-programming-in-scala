@@ -37,13 +37,12 @@ object Main extends App with Logging {
     if (topFitness < 0.1f || run == 1000) {
       topTree
     } else {
-      val crossoverTrees = 1.to(trees.length / 4 * 3).map { _ =>
+      val crossoverTrees = 1.to(trees.length / 4 * 3).flatMap { _ =>
         Trees.crossover(
           tournament(random(treesAndFitness), random(treesAndFitness)),
-          tournament(random(treesAndFitness), random(treesAndFitness)),
-          functions)
+          tournament(random(treesAndFitness), random(treesAndFitness)))
       }
-      val replicateTrees = sortedTrees.take(trees.length / 4)
+      val replicateTrees = sortedTrees.take(trees.length - crossoverTrees.length)
       loop(run + 1, crossoverTrees ++ replicateTrees, expected)
     }
   }
@@ -109,22 +108,21 @@ object Trees {
 
   def rand(): Float = Random.nextFloat()
 
-  def crossover(left: Exp, right: Exp, functions: IndexedSeq[(Exp, Exp) => Exp]): Exp = {
+  def crossover(left: Exp, right: Exp): Option[Exp] = {
     val lefts = collect(left)
     val rights = collect(right)
     val lhs = lefts(Random.nextInt(lefts.length))
     val rhs = rights(Random.nextInt(rights.length))
     (lhs, rhs) match {
-      case (Add(lhs, _), _) => Add(lhs, rhs)
-      case (Sub(lhs, _), _) => Sub(lhs, rhs)
-      case (Mul(lhs, _), _) => Mul(lhs, rhs)
-      case (Div(lhs, _), _) => Div(lhs, rhs)
-      case (_, Add(_, rhs)) => Add(lhs, rhs)
-      case (_, Sub(_, rhs)) => Add(lhs, rhs)
-      case (_, Mul(_, rhs)) => Add(lhs, rhs)
-      case (_, Div(_, rhs)) => Add(lhs, rhs)
-      // This last one is actually a mutation. Nature finds a way.
-      case (lhs, rhs) => functions(Random.nextInt(functions.length))(lhs, rhs)
+      case (Add(lhs, _), _) => Some(Add(lhs, rhs))
+      case (Sub(lhs, _), _) => Some(Sub(lhs, rhs))
+      case (Mul(lhs, _), _) => Some(Mul(lhs, rhs))
+      case (Div(lhs, _), _) => Some(Div(lhs, rhs))
+      case (_, Add(_, rhs)) => Some(Add(lhs, rhs))
+      case (_, Sub(_, rhs)) => Some(Add(lhs, rhs))
+      case (_, Mul(_, rhs)) => Some(Add(lhs, rhs))
+      case (_, Div(_, rhs)) => Some(Add(lhs, rhs))
+      case (lhs, rhs) => None
     }
   }
 
