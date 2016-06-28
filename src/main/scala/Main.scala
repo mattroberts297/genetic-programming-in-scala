@@ -1,5 +1,6 @@
 
 import scala.Predef
+import scala.annotation.tailrec
 import scala.collection.immutable._
 import scala.collection.mutable
 import org.slf4s.Logging
@@ -7,47 +8,17 @@ import org.slf4s.Logging
 import scala.util.{Random, Try}
 
 object Main extends App with Logging {
-  log.debug("Main started")
+  val population = 1000
+  val maxDepth = 4
   val constants = Constants.range(-5f, 5f, 1f)
   val variables = IndexedSeq(Var('x))
   val functions = IndexedSeq(Add, Sub, Div, Mul)
-
   val expected = (-1f).to(1f, 0.05f).map(x => (Map('x -> x), x * x + x + 1))
-  val population = 1000
   val terminalSet = constants ++ variables
   val functionSet = functions
-  val firstTrees = Trees.rampHalfHalf(population, 4, functionSet, terminalSet).toVector
-
-  def tournament(a: (Exp, Float), b: (Exp, Float)): Exp = {
-    val (aExp, aFit) = a
-    val (bExp, bFit) = b
-    if (aFit < bFit) aExp else bExp
-  }
-
-  def random[T](elements: IndexedSeq[T]): T = {
-    elements(Random.nextInt(elements.length))
-  }
-
-  def loop(run: Int, trees: IndexedSeq[Exp], expected: Seq[(Map[Symbol, Float], Float)]): Exp = {
-    log.debug(s"Run $run")
-    val treesAndFitness = trees.map(tree => tree -> Trees.fitness(tree, expected))
-    val sortedTreesAndFitness = treesAndFitness.sortBy { case (_, fitness) => fitness }
-    val sortedTrees = treesAndFitness.map { case (tree, _) => tree }
-    val (topTree, topFitness) = sortedTreesAndFitness.head
-    if (topFitness < 0.1f || run == 1000) {
-      topTree
-    } else {
-      val crossoverTrees = 1.to(trees.length / 4 * 3).flatMap { _ =>
-        Trees.crossover(
-          tournament(random(treesAndFitness), random(treesAndFitness)),
-          tournament(random(treesAndFitness), random(treesAndFitness)))
-      }
-      val replicateTrees = sortedTrees.take(trees.length - crossoverTrees.length)
-      loop(run + 1, crossoverTrees ++ replicateTrees, expected)
-    }
-  }
-
-  val fitTree = loop(1, firstTrees, expected)
+  val trees = GP.rampHalfHalf(population, maxDepth, functionSet, terminalSet).toVector
+  def criteria(fitness: Float): Boolean = fitness < 0.1f
+  val fitTree = GP.run(trees, expected, criteria)
   log.debug(s"Fittest tree: ${fitTree}")
   log.debug("expected\t\tactual")
   expected.foreach { case (symbols, expected) =>
@@ -55,7 +26,45 @@ object Main extends App with Logging {
   }
 }
 
-object Trees {
+object GP extends Logging {
+  def run(
+      initial: IndexedSeq[Exp],
+      expected: Seq[(Map[Symbol, Float], Float)],
+      criteria: Float => Boolean): Exp = {
+    @tailrec
+    def loop(run: Int, current: IndexedSeq[Exp]): Exp = {
+      log.debug(s"Run $run")
+      val treesAndFitness = current.map(tree => tree -> fitness(tree, expected))
+      val sortedTreesAndFitness = treesAndFitness.sortBy { case (_, fitness) => fitness }
+      val sortedTrees = treesAndFitness.map { case (tree, _) => tree }
+      val (topTree, topFitness) = sortedTreesAndFitness.head
+      if (criteria(topFitness)) {
+        topTree
+      } else {
+        val crossoverTrees = 1.to(current.length / 4 * 3).flatMap { _ =>
+          crossover(
+            tournament(random(treesAndFitness), random(treesAndFitness)),
+            tournament(random(treesAndFitness), random(treesAndFitness)))
+        }
+        val replicateTrees = sortedTrees.take(current.length - crossoverTrees.length)
+        loop(run + 1, crossoverTrees ++ replicateTrees)
+      }
+    }
+    loop(1, initial)
+  }
+
+  def fitness(tree: Exp, expected: Seq[(Map[Symbol, Float], Float)]): Float = {
+    expected.foldLeft(0f) { case (acc, (symbols, expected)) =>
+      acc + Math.pow((expected - tree.eval(symbols)), 2).toFloat
+    }
+  }
+
+  def tournament(a: (Exp, Float), b: (Exp, Float)): Exp = {
+    val (aExp, aFit) = a
+    val (bExp, bFit) = b
+    if (aFit < bFit) aExp else bExp
+  }
+
   def full(depth: Int, functions: IndexedSeq[(Exp, Exp) => Exp], terminals: IndexedSeq[Exp]): Exp = {
     def loop(i: Int): Exp = {
       if (i == depth) {
@@ -106,8 +115,6 @@ object Trees {
     loop(Set.empty, 0, 1)
   }
 
-  def rand(): Float = Random.nextFloat()
-
   def crossover(left: Exp, right: Exp): Option[Exp] = {
     val lefts = collect(left)
     val rights = collect(right)
@@ -126,7 +133,7 @@ object Trees {
     }
   }
 
-  private def collect(tree: Exp): IndexedSeq[Exp] = {
+  def collect(tree: Exp): IndexedSeq[Exp] = {
     val ops = collectOps(tree)
     if (rand() > 0.9 || ops.isEmpty) {
       collectTerminals(tree)
@@ -135,7 +142,7 @@ object Trees {
     }
   }
 
-  private def collectTerminals(tree: Exp): IndexedSeq[Exp] = {
+  def collectTerminals(tree: Exp): IndexedSeq[Exp] = {
     def collect(acc: IndexedSeq[Exp], subtree: Exp): IndexedSeq[Exp] = {
       subtree match {
         case v: Var => IndexedSeq(v) ++ acc
@@ -146,7 +153,7 @@ object Trees {
     collect(IndexedSeq.empty, tree)
   }
 
-  private def collectOps(tree: Exp): IndexedSeq[Exp with BinOp] = {
+  def collectOps(tree: Exp): IndexedSeq[Exp with BinOp] = {
     def collectOps(acc: IndexedSeq[Exp with BinOp], subtree: Exp): IndexedSeq[Exp with BinOp] = {
       subtree match {
         case v: Var => acc
@@ -158,11 +165,11 @@ object Trees {
     collectOps(IndexedSeq.empty, tree)
   }
 
-  def fitness(tree: Exp, expected: Seq[(Map[Symbol, Float], Float)]): Float = {
-    expected.foldLeft(0f) { case (acc, (symbols, expected)) =>
-      acc + Math.pow((expected - tree.eval(symbols)), 2).toFloat
-    }
+  def random[T](elements: IndexedSeq[T]): T = {
+    elements(Random.nextInt(elements.length))
   }
+
+  def rand(): Float = Random.nextFloat()
 }
 
 object Constants {
