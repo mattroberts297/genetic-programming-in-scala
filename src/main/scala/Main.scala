@@ -19,7 +19,7 @@ object Main extends App with Logging {
   val terminalSet = constants ++ variables
   val functionSet = functions
   val trees = GP.rampHalfHalf(population, maxDepth, functionSet, terminalSet).toVector
-  def criteria(fitness: Float): Boolean = fitness < 0.1f
+  def criteria(fitness: Float): Boolean = fitness < 0.01f
   val fitTree = GP.run(trees, expected, criteria)
   log.debug(s"Fittest tree: ${fitTree}")
   log.debug("expected\t\tactual")
@@ -41,7 +41,7 @@ object GP extends Logging {
       initial: IndexedSeq[Exp],
       expected: Seq[(Map[Symbol, Float], Float)],
       criteria: Float => Boolean,
-      maxRuns: Int = 500): Exp = {
+      maxRuns: Int = 1000): Exp = {
     @tailrec
     def loop(run: Int, current: IndexedSeq[Exp]): Exp = {
       val treesAndFitness = current.map(tree => tree -> fitness(tree, expected))
@@ -54,17 +54,20 @@ object GP extends Logging {
         // todo: mutation
         // for some reason as time passes you get more duplicates.
         val set = mutable.Set.empty[Exp]
-        while (set.size < current.length / 4 * 3) {
+        val replicas = sortedTrees.take(current.length / 100 * 19)
+        replicas.foreach(exp => set += exp)
+        val mutants = 1.to(current.length / 100).map(_ => sortedTrees(Random.nextInt(sortedTrees.length))).flatMap(mutate)
+        mutants.foreach(exp => set += exp)
+        while (set.size < current.length) {
           set += retrying {
             crossover(
               tournament(random(treesAndFitness), random(treesAndFitness)),
               tournament(random(treesAndFitness), random(treesAndFitness)))
           }
         }
-        val crossovers = set.toVector
-        val replicas = sortedTrees.take(current.length - crossovers.length)
-        log.debug(s"run=${run}, minFitness=${minFitness}, length=${current.length} crossovers.length=${crossovers.length}, replicas.length=${replicas.length}")
-        loop(run + 1, crossovers ++ replicas)
+        val replicasAndCrossovers = set.toVector
+        log.debug(s"run=${run}, minFitness=${minFitness}, distinct=${current.distinct.length} crossovers.length=${replicasAndCrossovers.length}, replicas.length=${replicas.length}")
+        loop(run + 1, replicasAndCrossovers)
       }
     }
     loop(1, initial)
@@ -134,24 +137,81 @@ object GP extends Logging {
   }
 
   def crossover(left: Exp, right: Exp): Option[Exp] = {
-    val lefts = collect(left)
-    val rights = collect(right)
+    val lefts = collectOpsOrTerminals(left)
+    val rights = collectOpsOrTerminals(right)
     val lhs = lefts(Random.nextInt(lefts.length))
     val rhs = rights(Random.nextInt(rights.length))
-    (lhs, rhs) match {
-      case (Add(lhs, _), _) => Some(Add(lhs, rhs))
-      case (Sub(lhs, _), _) => Some(Sub(lhs, rhs))
-      case (Mul(lhs, _), _) => Some(Mul(lhs, rhs))
-      case (Div(lhs, _), _) => Some(Div(lhs, rhs))
-      case (_, Add(_, rhs)) => Some(Add(lhs, rhs))
-      case (_, Sub(_, rhs)) => Some(Sub(lhs, rhs))
-      case (_, Mul(_, rhs)) => Some(Mul(lhs, rhs))
-      case (_, Div(_, rhs)) => Some(Div(lhs, rhs))
-      case (lhs, rhs) => None
+    if (rand() > 0.5) {
+      (lhs, rhs) match {
+        case (Add(_, rhs), _) => Some(Add(lhs, rhs))
+        case (Sub(_, rhs), _) => Some(Sub(lhs, rhs))
+        case (Mul(_, rhs), _) => Some(Mul(lhs, rhs))
+        case (Div(_, rhs), _) => Some(Div(lhs, rhs))
+        case (_, Add(lhs, _)) => Some(Add(lhs, rhs))
+        case (_, Sub(lhs, _)) => Some(Sub(lhs, rhs))
+        case (_, Mul(lhs, _)) => Some(Mul(lhs, rhs))
+        case (_, Div(lhs, _)) => Some(Div(lhs, rhs))
+        case (lhs, rhs) => None
+      }
+    } else {
+      (lhs, rhs) match {
+        case (Add(lhs, _), _) => Some(Add(lhs, rhs))
+        case (Sub(lhs, _), _) => Some(Sub(lhs, rhs))
+        case (Mul(lhs, _), _) => Some(Mul(lhs, rhs))
+        case (Div(lhs, _), _) => Some(Div(lhs, rhs))
+        case (_, Add(_, rhs)) => Some(Add(lhs, rhs))
+        case (_, Sub(_, rhs)) => Some(Sub(lhs, rhs))
+        case (_, Mul(_, rhs)) => Some(Mul(lhs, rhs))
+        case (_, Div(_, rhs)) => Some(Div(lhs, rhs))
+        case (lhs, rhs) => None
+      }
     }
   }
 
+  def mutate(exp: Exp): Option[Exp] = {
+    val functions = Main.functionSet
+    val terminals = Main.terminalSet
+    val depth = Main.maxDepth
+    val ops = collectOps(exp)
+    if (ops.isEmpty) {
+      None
+    } else {
+      val op = ops(Random.nextInt(ops.length))
+      if (rand() > 0.5) {
+        Some(functions(Random.nextInt(functions.length))(grow(depth, functions, terminals), op.rhs))
+      } else {
+        Some(functions(Random.nextInt(functions.length))(op.lhs, grow(depth, functions, terminals)))
+      }
+    }
+  }
+
+  def mutate2(
+      tree: Exp,
+      newSubTree: Exp): Exp = {
+    val trees = collect(tree)
+    val subTrees = trees.tail
+    val mutationPoint = subTrees(Random.nextInt())
+    val parent = trees.find {
+      case o: BinOp => o.lhs == mutationPoint || o.rhs == mutationPoint
+      case _ => false
+    }.get
+
+    // Not that simple actually. Need to "walk" the tree and replace in a copy.
+    ???
+  }
+
   def collect(tree: Exp): IndexedSeq[Exp] = {
+    def collect(acc: IndexedSeq[Exp], subtree: Exp): IndexedSeq[Exp] = {
+      subtree match {
+        case v: Var => IndexedSeq(v) ++ acc
+        case c: Con => IndexedSeq(c) ++ acc
+        case o: BinOp => IndexedSeq(o) ++ collect(acc, o.lhs) ++ collect(acc, o.rhs)
+      }
+    }
+    collect(IndexedSeq.empty, tree)
+  }
+
+  def collectOpsOrTerminals(tree: Exp): IndexedSeq[Exp] = {
     val ops = collectOps(tree)
     if (rand() > 0.9 || ops.isEmpty) {
       collectTerminals(tree)
@@ -187,6 +247,20 @@ object GP extends Logging {
     elements(Random.nextInt(elements.length))
   }
 
+  def random[T](elements: Seq[T], probs: Seq[Float]): T = {
+    val random = rand()
+    var cumProb = 0f
+    val cumProbs = probs.map { p =>
+      cumProb = cumProb + p
+      cumProb
+    }
+    elements.zip(cumProbs).find { case (_, p) =>
+      p > random
+    }.map { case (e, _) =>
+      e
+    }.getOrElse(elements.last)
+  }
+
   def rand(): Float = Random.nextFloat()
 }
 
@@ -200,7 +274,7 @@ sealed trait Exp {
   def eval(implicit symbols: Map[Symbol, Float]): Float
 }
 
-sealed trait BinOp {
+trait BinOp {
   def lhs: Exp
   def rhs: Exp
 }

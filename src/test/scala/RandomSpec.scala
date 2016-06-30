@@ -7,11 +7,11 @@ import scala.collection.mutable
 class RandomSpec extends WordSpec with Matchers {
   val elements = Seq(1,2,3)
   val probabilities = Seq(0.25f, 0.25f, 0.5f)
-  "random should work" in {
+  "random(elements, probabilities) should work" in {
     val n = 100000
     val results = 1.to(n).map(_ => GP.random(elements, probabilities))
-    results.count(_ == 1).toFloat / n should be (0.25f +- 0.01f)
-    results.count(_ == 2).toFloat / n should be (0.25f +- 0.01f)
-    results.count(_ == 3).toFloat / n should be (0.5f +- 0.01f)
+    results.count(_ == 1).toFloat / n should be(0.25f +- 0.01f)
+    results.count(_ == 2).toFloat / n should be(0.25f +- 0.01f)
+    results.count(_ == 3).toFloat / n should be(0.5f +- 0.01f)
   }
 }
