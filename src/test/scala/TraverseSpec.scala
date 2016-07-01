@@ -4,6 +4,8 @@ import org.scalatest.{Matchers, WordSpec}
 import scala.collection.immutable._
 import scala.collection.mutable
 
+import model._
+
 class TraverseSpec extends WordSpec with Matchers {
   "copy" should {
     "not return the same reference" in {

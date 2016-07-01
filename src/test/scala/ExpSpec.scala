@@ -4,6 +4,8 @@ import org.scalatest.{Matchers, WordSpec}
 import scala.collection.immutable._
 import scala.collection.mutable
 
+import model._
+
 class ExpSpec extends WordSpec with Matchers {
   "exp.eval should evaluate correctly" in {
     // x * x - x - 2
