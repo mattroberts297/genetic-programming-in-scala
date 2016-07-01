@@ -10,7 +10,7 @@ import model._
 
 object Main extends App with Logging {
   val population = 10000
-  val maxDepth = 10
+  val maxDepth = 5
   val constants = Constants.range(-5f, 5f, 1f)
   val variables = IndexedSeq(Var('x))
   val functions = IndexedSeq(Add, Sub, Div, Mul)
