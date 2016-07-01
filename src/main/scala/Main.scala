@@ -185,19 +185,17 @@ object GP extends Logging {
     }
   }
 
-  def mutate2(
-      tree: Exp,
-      newSubTree: Exp): Exp = {
-    val trees = collect(tree)
-    val subTrees = trees.tail
-    val mutationPoint = subTrees(Random.nextInt())
-    val parent = trees.find {
-      case o: BinOp => o.lhs == mutationPoint || o.rhs == mutationPoint
-      case _ => false
-    }.get
-
-    // Not that simple actually. Need to "walk" the tree and replace in a copy.
-    ???
+  def replace(exp: Exp, target: Exp, replacement: Exp): Exp = {
+    def repl(exp: Exp) = replace(exp, target, replacement)
+    exp match {
+      case exp: Exp if (exp.eq(target)) => replacement
+      case Con(value) => Con(value)
+      case Var(symbol) => Var(symbol)
+      case Add(lhs, rhs) => Add(repl(lhs), repl(rhs))
+      case Sub(lhs, rhs) => Sub(repl(lhs), repl(rhs))
+      case Mul(lhs, rhs) => Mul(repl(lhs), repl(rhs))
+      case Div(lhs, rhs) => Div(repl(lhs), repl(rhs))
+    }
   }
 
   def collect(tree: Exp): IndexedSeq[Exp] = {

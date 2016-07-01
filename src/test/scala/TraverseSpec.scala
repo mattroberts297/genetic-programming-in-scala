@@ -5,90 +5,76 @@ import scala.collection.immutable._
 import scala.collection.mutable
 
 class TraverseSpec extends WordSpec with Matchers {
-  "depth first" in {
-    val exp = Add(Con(4), Sub(Con(10), Con(5)))
-    val queue = depthFirst(exp)
-    println(queue)
-  }
-
-  "midLeftRight" in {
-    val exp = Add(Con(4), Sub(Con(10), Con(5)))
-    val queue = midLeftRight(exp)
-    println(queue)
-    println(queue.dequeue)
-    println()
-  }
-
-  // stack deprecated. wtf.
-  "midLeftRightStack" in {
-    val exp = Add(Con(4), Sub(Con(10), Con(5)))
-    val stack = midLeftRightStack(exp)
-    println(exp)
-    println(stack)
-    println((stack.head, stack.pop))
-    println((stack.pop.head, stack.pop.pop))
-    println()
-  }
-
-  "midLeftRightList" in {
-    val exp = Add(Mul(Con(4), Con(2)), Sub(Con(10), Con(5)))
-    val list = midLeftRightList(exp)
-    println(exp)
-    println(list)
-    println((list.head, list.tail))
-    println((list.tail.head, list.tail.tail))
-    println()
-  }
-
-  def depthFirst(exp: Exp): Queue[String] = {
-    def loop(exp: Exp, queue: Queue[String]): Queue[String] = {
-      exp match {
-        case Con(value) => queue.enqueue(value.toString)
-        case Var(symbol) => queue.enqueue(symbol.toString)
-        case Add(lhs, rhs) => loop(lhs, queue).enqueue(loop(rhs, queue)).enqueue("+")
-        case Sub(lhs, rhs) => loop(lhs, queue).enqueue(loop(rhs, queue)).enqueue("-")
-      }
+  "copy" should {
+    "not return the same reference" in {
+      val a = Add(Mul(Con(4), Con(2)), Sub(Con(10), Con(5)))
+      val b = copy(a)
+      a.eq(b) should be (false)
     }
-    loop(exp, Queue.empty[String])
+
+    "return the same value" in {
+      val a = Add(Mul(Con(4), Con(2)), Sub(Con(10), Con(5)))
+      val b = copy(a)
+      a == b should be (true)
+    }
   }
 
-  def midLeftRight(exp: Exp): Queue[String] = {
-    def loop(exp: Exp, queue: Queue[String]): Queue[String] = {
-      exp match {
-        case Con(value) => queue.enqueue(value.toString)
-        case Var(symbol) => queue.enqueue(symbol.toString)
-        case Add(lhs, rhs) => queue.enqueue("+").enqueue(loop(lhs, queue)).enqueue(loop(rhs, queue))
-        case Sub(lhs, rhs) => queue.enqueue("-").enqueue(loop(lhs, queue)).enqueue(loop(rhs, queue))
-      }
+  "replace" should {
+    "replace exp with referential equality" in {
+      val lhs = Add(Con(2), Con(2))
+      val rhs = Add(Con(2), Con(2))
+      val replacement = Mul(Con(2), Con(2))
+      val exp = Mul(lhs, rhs)
+      val result = replace(exp, lhs, replacement).asInstanceOf[Mul]
+      result.lhs.eq(replacement) should be (true)
     }
-    loop(exp, Queue.empty[String])
+
+    "not replace value equality" in {
+      val lhs = Add(Con(2), Con(2))
+      val rhs = Add(Con(2), Con(2))
+      val replacement = Mul(Con(2), Con(2))
+      val exp = Mul(lhs, rhs)
+      val result = replace(exp, lhs, replacement).asInstanceOf[Mul]
+      result.rhs.ne(replacement) should be (true)
+      result.rhs == rhs should be (true)
+    }
   }
 
-  def midLeftRightList(exp: Exp): List[String] = {
-    def loop(exp: Exp, list: List[String]): List[String] = {
-      exp match {
-        case Con(value) => value.toString :: list
-        case Var(symbol) => symbol.toString :: list
-        case Add(lhs, rhs) => "+" :: loop(lhs, list) ::: loop(rhs, list)
-        case Sub(lhs, rhs) => "-" :: loop(lhs, list) ::: loop(rhs, list)
-        case Mul(lhs, rhs) => "*" :: loop(lhs, list) ::: loop(rhs, list)
-        case Div(lhs, rhs) => "/" :: loop(lhs, list) ::: loop(rhs, list)
-      }
+  "reference equality (eq)" should {
+    "return true for references" in {
+      val a = Con(2)
+      val b = a
+      b.eq(a) should be (true)
     }
-    loop(exp, List.empty[String]).reverse
+
+    "return false for different references" in {
+      val a = Con(2)
+      val c = Con(2)
+      c.eq(a) should be (false)
+    }
   }
 
-  def midLeftRightStack(exp: Exp): Stack[String] = {
-    def loop(exp: Exp, stack: Stack[String]): Stack[String] = {
-      exp match {
-        case Con(value) => stack.push(value.toString)
-        case Var(symbol) => stack.push(symbol.toString)
-        case Add(lhs, rhs) => stack.push("+").pushAll(loop(lhs, stack)).pushAll(loop(rhs, stack))
-        case Sub(lhs, rhs) => stack.push("-").pushAll(loop(lhs, stack)).pushAll(loop(rhs, stack))
-        case Mul(lhs, rhs) => stack.push("*").pushAll(loop(lhs, stack)).pushAll(loop(rhs, stack))
-        case Div(lhs, rhs) => stack.push("/").pushAll(loop(lhs, stack)).pushAll(loop(rhs, stack))
-      }
+  def copy(exp: Exp): Exp = {
+    exp match {
+      case Con(value) => Con(value)
+      case Var(symbol) => Var(symbol)
+      case Add(lhs, rhs) => Add(copy(lhs), copy(rhs))
+      case Sub(lhs, rhs) => Sub(copy(lhs), copy(rhs))
+      case Mul(lhs, rhs) => Mul(copy(lhs), copy(rhs))
+      case Div(lhs, rhs) => Div(copy(lhs), copy(rhs))
     }
-    loop(exp, Stack.empty[String])
+  }
+
+  def replace(exp: Exp, target: Exp, replacement: Exp): Exp = {
+    def repl(exp: Exp) = replace(exp, target, replacement)
+    exp match {
+      case exp: Exp if (exp.eq(target)) => replacement
+      case Con(value) => Con(value)
+      case Var(symbol) => Var(symbol)
+      case Add(lhs, rhs) => Add(repl(lhs), repl(rhs))
+      case Sub(lhs, rhs) => Sub(repl(lhs), repl(rhs))
+      case Mul(lhs, rhs) => Mul(repl(lhs), repl(rhs))
+      case Div(lhs, rhs) => Div(repl(lhs), repl(rhs))
+    }
   }
 }
