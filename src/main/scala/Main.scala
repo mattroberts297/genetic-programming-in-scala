@@ -15,8 +15,8 @@ object Main extends App with Logging {
   val variables = IndexedSeq(Var('x))
   val functions = IndexedSeq(Add, Sub, Div, Mul)
   def pow(a: Float, b: Float): Float = Math.pow(a, b).toFloat
-  val expected = (-1f).to(1f, 0.05f).map(x => (Map('x -> x), pow(x, 2) - x - 2))
-//  val expected = (-3f).to(3f, 0.05f).map(x => (Map('x -> x), pow(x,3) / 4 + 3 * pow(x, 2) / 4 - 3 * x / 2 - 2))
+//  val expected = (-1f).to(1f, 0.05f).map(x => (Map('x -> x), pow(x, 2) - x - 2))
+  val expected = (-3f).to(3f, 0.05f).map(x => (Map('x -> x), pow(x,3) / 4 + 3 * pow(x, 2) / 4 - 3 * x / 2 - 2))
   val terminalSet = constants ++ variables
   val functionSet = functions
   val trees = GP.rampHalfHalf(population, maxDepth, functionSet, terminalSet).toVector
@@ -57,14 +57,15 @@ object GP extends Logging {
         val set = mutable.Set.empty[Exp]
         val replicas = sortedTrees.take(current.length / 100 * 19)
         replicas.foreach(exp => set += exp)
-        val mutants = 1.to(current.length / 100).map(_ => sortedTrees(Random.nextInt(sortedTrees.length))).flatMap(mutate)
+        val mutants = 1.to(current.length / 100).map { _ =>
+          sortedTrees(Random.nextInt(sortedTrees.length))
+        }.map(e => mutate(e))
         mutants.foreach(exp => set += exp)
         while (set.size < current.length) {
-          set += retrying {
-            crossover(
-              tournament(random(treesAndFitness), random(treesAndFitness)),
-              tournament(random(treesAndFitness), random(treesAndFitness)))
-          }
+          set += crossover(
+            tournament(random(treesAndFitness), random(treesAndFitness)),
+            tournament(random(treesAndFitness), random(treesAndFitness)))
+
         }
         val replicasAndCrossovers = set.toVector
         log.debug(s"run=${run}, minFitness=${minFitness}, distinct=${current.distinct.length} crossovers.length=${replicasAndCrossovers.length}, replicas.length=${replicas.length}")
@@ -137,53 +138,19 @@ object GP extends Logging {
     loop(Set.empty, 0, 1)
   }
 
-  def crossover(left: Exp, right: Exp): Option[Exp] = {
-    val lefts = collectOpsOrTerminals(left)
-    val rights = collectOpsOrTerminals(right)
-    val lhs = lefts(Random.nextInt(lefts.length))
-    val rhs = rights(Random.nextInt(rights.length))
-    if (rand() > 0.5) {
-      (lhs, rhs) match {
-        case (Add(_, rhs), _) => Some(Add(lhs, rhs))
-        case (Sub(_, rhs), _) => Some(Sub(lhs, rhs))
-        case (Mul(_, rhs), _) => Some(Mul(lhs, rhs))
-        case (Div(_, rhs), _) => Some(Div(lhs, rhs))
-        case (_, Add(lhs, _)) => Some(Add(lhs, rhs))
-        case (_, Sub(lhs, _)) => Some(Sub(lhs, rhs))
-        case (_, Mul(lhs, _)) => Some(Mul(lhs, rhs))
-        case (_, Div(lhs, _)) => Some(Div(lhs, rhs))
-        case (lhs, rhs) => None
-      }
-    } else {
-      (lhs, rhs) match {
-        case (Add(lhs, _), _) => Some(Add(lhs, rhs))
-        case (Sub(lhs, _), _) => Some(Sub(lhs, rhs))
-        case (Mul(lhs, _), _) => Some(Mul(lhs, rhs))
-        case (Div(lhs, _), _) => Some(Div(lhs, rhs))
-        case (_, Add(_, rhs)) => Some(Add(lhs, rhs))
-        case (_, Sub(_, rhs)) => Some(Sub(lhs, rhs))
-        case (_, Mul(_, rhs)) => Some(Mul(lhs, rhs))
-        case (_, Div(_, rhs)) => Some(Div(lhs, rhs))
-        case (lhs, rhs) => None
-      }
-    }
+  def crossover(left: Exp, right: Exp): Exp = {
+    val replacement = biasedRandom(left)
+    val target = biasedRandom(right)
+    replace(right, target, replacement)
   }
 
-  def mutate(exp: Exp): Option[Exp] = {
+  def mutate(exp: Exp): Exp = {
     val functions = Main.functionSet
     val terminals = Main.terminalSet
     val depth = Main.maxDepth
-    val ops = collectOps(exp)
-    if (ops.isEmpty) {
-      None
-    } else {
-      val op = ops(Random.nextInt(ops.length))
-      if (rand() > 0.5) {
-        Some(functions(Random.nextInt(functions.length))(grow(depth, functions, terminals), op.rhs))
-      } else {
-        Some(functions(Random.nextInt(functions.length))(op.lhs, grow(depth, functions, terminals)))
-      }
-    }
+    val target = random(exp)
+    val replacement = grow(depth, functions, terminals)
+    replace(exp, target, replacement)
   }
 
   def replace(exp: Exp, target: Exp, replacement: Exp): Exp = {
@@ -210,7 +177,7 @@ object GP extends Logging {
     collect(IndexedSeq.empty, tree)
   }
 
-  def collectOpsOrTerminals(tree: Exp): IndexedSeq[Exp] = {
+  def biasedCollect(tree: Exp): IndexedSeq[Exp] = {
     val ops = collectOps(tree)
     if (rand() > 0.9 || ops.isEmpty) {
       collectTerminals(tree)
@@ -240,6 +207,14 @@ object GP extends Logging {
       }
     }
     collectOps(IndexedSeq.empty, tree)
+  }
+
+  def random(tree: Exp): Exp = {
+    random(collect(tree))
+  }
+
+  def biasedRandom(tree: Exp): Exp = {
+    random(biasedCollect(tree))
   }
 
   def random[T](elements: IndexedSeq[T]): T = {
