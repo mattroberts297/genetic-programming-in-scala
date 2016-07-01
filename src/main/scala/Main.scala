@@ -37,8 +37,12 @@ object GP extends Logging {
       maxRuns: Int = 1000): Exp = {
     @tailrec
     def loop(run: Int, current: IndexedSeq[Exp]): Exp = {
-      val treesAndFitness = current.map(tree => tree -> fitness(tree, expected))
-      val sortedTreesAndFitness = treesAndFitness.sortBy { case (_, fitness) => fitness }
+      val treesAndFitness = current.map { tree =>
+        tree -> fitness(tree, expected)
+      }
+      val sortedTreesAndFitness = treesAndFitness.sortBy { case (_, fitness) =>
+        fitness
+      }
       val sortedTrees = sortedTreesAndFitness.map { case (tree, _) => tree }
       val (topTree, minFitness) = sortedTreesAndFitness.head
       if (criteria(minFitness) || run == maxRuns) {
@@ -56,10 +60,9 @@ object GP extends Logging {
           set += crossover(
             tournament(random(treesAndFitness), random(treesAndFitness)),
             tournament(random(treesAndFitness), random(treesAndFitness)))
-
         }
         val replicasAndCrossovers = set.toVector
-        log.debug(s"run=${run}, minFitness=${minFitness}, distinct=${current.distinct.length} crossovers.length=${replicasAndCrossovers.length}, replicas.length=${replicas.length}")
+        log.debug(s"run=${run}, minFitness=${minFitness}")
         loop(run + 1, replicasAndCrossovers)
       }
     }
