@@ -7,6 +7,14 @@ sealed trait Exp {
   def eval(implicit st: ST): Float
 }
 
+case class Con(value: Float) extends Exp {
+  override def eval(implicit st: ST): Float = value
+}
+
+case class Var(name: Symbol) extends Exp {
+  override def eval(implicit st: ST): Float =st(name)
+}
+
 trait BinOp {
   def lhs: Exp
   def rhs: Exp
@@ -28,12 +36,4 @@ case class Div(lhs: Exp, rhs: Exp) extends Exp with BinOp {
   override def eval(implicit st: ST): Float = Try {
     lhs.eval / rhs.eval
   } getOrElse 1f
-}
-
-case class Con(value: Float) extends Exp {
-  override def eval(implicit st: ST): Float = value
-}
-
-case class Var(name: Symbol) extends Exp {
-  override def eval(implicit st: ST): Float =st(name)
 }
