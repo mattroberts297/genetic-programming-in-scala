@@ -13,21 +13,15 @@ trait BinOp {
 }
 
 case class Add(lhs: Exp, rhs: Exp) extends Exp with BinOp {
-  override def eval(implicit st: ST): Float = {
-    lhs.eval + rhs.eval
-  }
+  override def eval(implicit st: ST): Float = lhs.eval + rhs.eval
 }
 
 case class Sub(lhs: Exp, rhs: Exp) extends Exp with BinOp {
-  override def eval(implicit st: ST): Float = {
-    lhs.eval - rhs.eval
-  }
+  override def eval(implicit st: ST): Float = lhs.eval - rhs.eval
 }
 
 case class Mul(lhs: Exp, rhs: Exp) extends Exp with BinOp {
-  override def eval(implicit st: ST): Float = {
-    lhs.eval * rhs.eval
-  }
+  override def eval(implicit st: ST): Float = lhs.eval * rhs.eval
 }
 
 case class Div(lhs: Exp, rhs: Exp) extends Exp with BinOp {
@@ -37,13 +31,9 @@ case class Div(lhs: Exp, rhs: Exp) extends Exp with BinOp {
 }
 
 case class Con(value: Float) extends Exp {
-  override def eval(implicit st: ST): Float = {
-    value
-  }
+  override def eval(implicit st: ST): Float = value
 }
 
 case class Var(name: Symbol) extends Exp {
-  override def eval(implicit st: ST): Float = {
-    st(name)
-  }
+  override def eval(implicit st: ST): Float =st(name)
 }
