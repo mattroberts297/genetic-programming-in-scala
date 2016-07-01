@@ -15,8 +15,8 @@ object Main extends App with Logging {
   val variables = IndexedSeq(Var('x))
   val functions = IndexedSeq(Add, Sub, Div, Mul)
   def pow(a: Float, b: Float): Float = Math.pow(a, b).toFloat
-//  val expected = (-1f).to(1f, 0.05f).map(x => (Map('x -> x), pow(x, 2) - x - 2))
-  val expected = (-3f).to(3f, 0.05f).map(x => (Map('x -> x), pow(x,3) / 4 + 3 * pow(x, 2) / 4 - 3 * x / 2 - 2))
+  val expected = (-1f).to(1f, 0.05f).map(x => (Map('x -> x), pow(x, 2) - x - 2))
+//  val expected = (-3f).to(3f, 0.05f).map(x => (Map('x -> x), pow(x,3) / 4 + 3 * pow(x, 2) / 4 - 3 * x / 2 - 2))
   val terminalSet = constants ++ variables
   val functionSet = functions
   val trees = GP.rampHalfHalf(population, maxDepth, functionSet, terminalSet).toVector
@@ -30,14 +30,6 @@ object Main extends App with Logging {
 }
 
 object GP extends Logging {
-  @tailrec
-  def retrying[T](thunk: => Option[T]): T = {
-    thunk match {
-      case Some(t) => t
-      case None => retrying(thunk)
-    }
-  }
-
   def run(
       initial: IndexedSeq[Exp],
       expected: Seq[(Map[Symbol, Float], Float)],
@@ -52,8 +44,7 @@ object GP extends Logging {
       if (criteria(minFitness) || run == maxRuns) {
         topTree
       } else {
-        // todo: mutation
-        // for some reason as time passes you get more duplicates.
+        // todo make immutable
         val set = mutable.Set.empty[Exp]
         val replicas = sortedTrees.take(current.length / 100 * 19)
         replicas.foreach(exp => set += exp)
@@ -186,6 +177,10 @@ object GP extends Logging {
     }
   }
 
+  def biasedRandom(tree: Exp): Exp = {
+    random(biasedCollect(tree))
+  }
+
   def collectTerminals(tree: Exp): IndexedSeq[Exp] = {
     def collect(acc: IndexedSeq[Exp], subtree: Exp): IndexedSeq[Exp] = {
       subtree match {
@@ -209,12 +204,10 @@ object GP extends Logging {
     collectOps(IndexedSeq.empty, tree)
   }
 
+  def rand(): Float = Random.nextFloat()
+
   def random(tree: Exp): Exp = {
     random(collect(tree))
-  }
-
-  def biasedRandom(tree: Exp): Exp = {
-    random(biasedCollect(tree))
   }
 
   def random[T](elements: IndexedSeq[T]): T = {
@@ -234,8 +227,6 @@ object GP extends Logging {
       e
     }.getOrElse(elements.last)
   }
-
-  def rand(): Float = Random.nextFloat()
 }
 
 object Constants {
