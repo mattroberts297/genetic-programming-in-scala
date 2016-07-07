@@ -79,26 +79,34 @@ object GP extends Logging {
     if (aFit < bFit) aExp else bExp
   }
 
-  def full(depth: Int, functions: IndexedSeq[(Exp, Exp) => Exp], terminals: IndexedSeq[Exp]): Exp = {
+  def full(
+      depth: Int,
+      functions: IndexedSeq[(Exp, Exp) => Exp],
+      terminals: IndexedSeq[Exp]): Exp = {
     def loop(i: Int): Exp = {
       if (i == depth) {
-        terminals(Random.nextInt(terminals.length))
+        random(terminals)
       } else {
-        functions(Random.nextInt(functions.length))(loop(i + 1), loop(i + 1))
+        random(functions)(loop(i + 1), loop(i + 1))
       }
     }
     loop(0)
   }
 
-  def grow(depth: Int, functions: IndexedSeq[(Exp, Exp) => Exp], terminals: IndexedSeq[Exp]): Exp = {
+  def grow(
+      depth: Int,
+      functions: IndexedSeq[(Exp, Exp) => Exp],
+      terminals: IndexedSeq[Exp]): Exp = {
     def randomStop: Boolean = {
-      rand() < terminals.length.toFloat / (terminals.length + functions.length)
+      val tl = terminals.length.toFloat
+      val fl = functions.length.toFloat
+      random() < tl / (tl + fl)
     }
     def loop(i: Int): Exp = {
       if (i == depth || randomStop) {
-        terminals(Random.nextInt(terminals.length))
+        random(terminals)
       } else {
-        functions(Random.nextInt(functions.length))(loop(i + 1), loop(i + 1))
+        random(functions)(loop(i + 1), loop(i + 1))
       }
     }
     loop(0)
@@ -171,7 +179,7 @@ object GP extends Logging {
 
   def biasedCollect(tree: Exp): IndexedSeq[Exp] = {
     val ops = collectOps(tree)
-    if (rand() > 0.9 || ops.isEmpty) {
+    if (random() > 0.9 || ops.isEmpty) {
       collectTerminals(tree)
     } else {
       ops
@@ -205,7 +213,7 @@ object GP extends Logging {
     collectOps(IndexedSeq.empty, tree)
   }
 
-  def rand(): Float = Random.nextFloat()
+  def random(): Float = Random.nextFloat()
 
   def random(tree: Exp): Exp = {
     random(collect(tree))
@@ -216,14 +224,14 @@ object GP extends Logging {
   }
 
   def random[T](elements: Seq[T], probs: Seq[Float]): T = {
-    val random = rand()
+    val rand = random()
     var cumProb = 0f
     val cumProbs = probs.map { p =>
       cumProb = cumProb + p
       cumProb
     }
     elements.zip(cumProbs).find { case (_, p) =>
-      p > random
+      p > rand
     }.map { case (e, _) =>
       e
     }.getOrElse(elements.last)

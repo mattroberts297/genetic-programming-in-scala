@@ -8,13 +8,13 @@ Most, if not all, of the algorithms implemented here are based on the excellent 
 
 ### Representing programs
 
-There are three main steps in GP:
+There are three main steps in GP (2 and 3 are repeated):
 
 1. Generating a population of programs;
 2. Evaluating the fitness of those programs; and
 3. Evolving a new, hopefully fitter, population of programs.
 
-In order to do any of those things we need to be able to represent programs in some way. This is normally done by means of an abstract syntax tree (AST). The AST considered here is handcrafted and only capable of representing simple polynomial expressions. There are, however, many tools capable of automatically generating ASTs from grammar files (my personal favourite being ANTLR). Here is the handcrafted AST:
+In order to do any of those things, however, we need to be able to represent programs in some way. This is normally done by means of an abstract syntax tree (AST). The AST considered here is handcrafted and only capable of representing simple polynomial expressions. There are, however, many tools capable of automatically generating ASTs from grammar files (my personal favourite being ANTLR). Here is the handcrafted AST:
 
 ###### model/Exp.scala
 
@@ -73,11 +73,11 @@ Second, the `eval` method never throws `java.lang.ArithmeticException: / by zero
 
 Third, and finally, both `Exp` and `BinOp` are sealed traits. This makes pattern matching easier because the compiler will warn us about incomplete matches instead of leaving us at the mercy of runtime exceptions.
 
-### Example ASTs
+#### Example ASTs
 
 In order to better understand what we are trying to achieve automatically it is useful to manually create some ASTs and plot the results of evaluating them for various values of `x`.
 
-#### Second degree polynomial
+##### Second degree polynomial
 
 Here is an AST for the second degree polynomial `f(x) = x^2 - x - 2`:
 
@@ -100,7 +100,7 @@ This plots shows the result of the expression for values of `x` between `-3` and
 
 ![Second degree polynomial](SecondDegreePolynomial.png "Second degree polynomial")
 
-#### Third degree polynomial
+##### Third degree polynomial
 
 Here is another, slightly more complex, AST for the third degree polynomial `f(x) = x^3 / 4 + 3x^2 / 4 - 3x / 2 - 2`:
 
@@ -123,14 +123,65 @@ And here is the plot:
 
 ![Third degree polynomial](ThirdDegreePolynomial.png "Third degree polynomial")
 
-From looking at both the AST and the chart you can hopefully see that the third degree polynomial will be more difficult to arrive at automatically than the second degree polynomial. These two expressions, one simpler and one more complex, will make good test cases for our GP algorithms.
+From looking at both the AST and the chart you can hopefully see that the third degree polynomial will be more difficult to generate automatically than the second degree polynomial. These two expressions, one simpler and one more complex, will make good test cases for our GP solution.
 
 ### Generating a population of programs
 
-In GP, the leafs of an AST, whether they be constants or variables, are referred to as the terminal set. The branches whether they be unary, binary or some other arity function are referred to as the function set. So for the AST defined above the sets are as follows:
+In GP, the leafs of an AST, whether they be constants or variables, are referred to as the terminal set. The branches whether they be unary, binary or some other arity function are referred to as the function set. So, using the AST defined above we can create the following terminal and functional sets:
 
 ```scala
+val terminalSet = IndexedSeq(Var('x)) ++ 1f.to(5f, 1f).map(Con)
+val functionSet = IndexedSeq(Add, Sub, Div, Mul)
+```
 
+With these sets it's possible to grow an AST of some arbitrary depth `depth`. The simplest way to do this is to create a `full` tree. The algorithm is reasonably simple. If the depth has been reached then return a random terminal from the terminal set. Otherwise return a random function passing the result of the next recursion as it's argument(s). Here is a method that does that:
 
+```scala
+def full(
+    depth: Int,
+    functions: IndexedSeq[(Exp, Exp) => Exp],
+    terminals: IndexedSeq[Exp]): Exp = {
+  def loop(i: Int): Exp = {
+    if (i == depth) {
+      random(terminals)
+    } else {
+      random(functions)(loop(i + 1), loop(i + 1))
+    }
+  }
+  loop(0)
+}
+
+def random[T](elements: IndexedSeq[T]): T = {
+  elements(Random.nextInt(elements.length))
+}
+```
+
+Here are some example ASTs with depths `1`, `2` and `3` generated with by the `full` method:
+
+![Full trees](FullTrees.png "Full trees")
+
+The `full` method is simple and definitely works, but all the trees for a given depth have the exactly same number of leafs. This leads to a surprisingly uniform population. The `grow` method resolves this issue by randomly stopping the recursion:
+
+```scala
+def grow(
+    depth: Int,
+    functions: IndexedSeq[(Exp, Exp) => Exp],
+    terminals: IndexedSeq[Exp]): Exp = {
+  def randomStop: Boolean = {
+    val tl = terminals.length.toFloat
+    val fl = functions.length.toFloat
+    random() < tl / (tl + fl)
+  }
+  def loop(i: Int): Exp = {
+    if (i == depth || randomStop) {
+      random(terminals)
+    } else {
+      random(functions)(loop(i + 1), loop(i + 1))
+    }
+  }
+  loop(0)
+}
+
+def random(): Float = Random.nextFloat()
 ```
 
