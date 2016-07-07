@@ -11,28 +11,26 @@ import model._
 object Main extends App with Logging {
   val population = 10000
   val maxDepth = 10
-  val constants = Constants.range(-5f, 5f, 1f)
-  val variables = IndexedSeq(Var('x))
-  val functions = IndexedSeq(Add, Sub, Div, Mul)
+  val terminalSet = IndexedSeq(Var('x)) ++ 1f.to(5f, 1f).map(Con)
+  val functionSet = IndexedSeq(Add, Sub, Div, Mul)
   def pow(a: Float, b: Float): Float = Math.pow(a, b).toFloat
   val expected = (-1f).to(1f, 0.05f).map(x => (Map('x -> x), pow(x, 2) - x - 2))
+
 //  val expected = (-3f).to(3f, 0.05f).map(x => (Map('x -> x), pow(x,3) / 4 + 3 * pow(x, 2) / 4 - 3 * x / 2 - 2))
-  val terminalSet = constants ++ variables
-  val functionSet = functions
   val trees = GP.rampHalfHalf(population, maxDepth, functionSet, terminalSet).toVector
   def criteria(fitness: Float): Boolean = fitness < 0.01f
   val fitTree = GP.run(trees, expected, criteria)
   log.debug(s"Fittest tree: ${fitTree}")
   log.debug("expected\t\tactual")
   expected.foreach { case (symbols, expected) =>
-    log.debug(s"${expected}\t${fitTree.eval(symbols)}")
+    log.debug(s"${expected}\t${Exp.eval(fitTree, symbols)}")
   }
 }
 
 object GP extends Logging {
   def run(
       initial: IndexedSeq[Exp],
-      expected: Seq[(Map[Symbol, Float], Float)],
+      expected: Seq[(ST, Float)],
       criteria: Float => Boolean,
       maxRuns: Int = 1000): Exp = {
     @tailrec
@@ -69,9 +67,9 @@ object GP extends Logging {
     loop(1, initial)
   }
 
-  def fitness(tree: Exp, expected: Seq[(Map[Symbol, Float], Float)]): Float = {
+  def fitness(tree: Exp, expected: Seq[(ST, Float)]): Float = {
     expected.foldLeft(0f) { case (acc, (symbols, expected)) =>
-      acc + Math.pow((expected - tree.eval(symbols)), 2).toFloat
+      acc + Math.pow((expected - Exp.eval(tree, symbols)), 2).toFloat
     }
   }
 

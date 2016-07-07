@@ -1,39 +1,32 @@
 package model
 
-import scala.collection.immutable._
-import scala.util.Try
+sealed trait Exp
 
-sealed trait Exp {
-  def eval(implicit st: ST): Float
-}
+case class Con(value: Float) extends Exp
 
-case class Con(value: Float) extends Exp {
-  override def eval(implicit st: ST): Float = value
-}
+case class Var(name: Symbol) extends Exp
 
-case class Var(name: Symbol) extends Exp {
-  override def eval(implicit st: ST): Float =st(name)
-}
-
-trait BinOp {
+sealed trait BinOp extends Exp {
   def lhs: Exp
   def rhs: Exp
 }
 
-case class Add(lhs: Exp, rhs: Exp) extends Exp with BinOp {
-  override def eval(implicit st: ST): Float = lhs.eval + rhs.eval
-}
+case class Add(lhs: Exp, rhs: Exp) extends BinOp
 
-case class Sub(lhs: Exp, rhs: Exp) extends Exp with BinOp {
-  override def eval(implicit st: ST): Float = lhs.eval - rhs.eval
-}
+case class Sub(lhs: Exp, rhs: Exp) extends BinOp
 
-case class Mul(lhs: Exp, rhs: Exp) extends Exp with BinOp {
-  override def eval(implicit st: ST): Float = lhs.eval * rhs.eval
-}
+case class Mul(lhs: Exp, rhs: Exp) extends BinOp
 
-case class Div(lhs: Exp, rhs: Exp) extends Exp with BinOp {
-  override def eval(implicit st: ST): Float = Try {
-    lhs.eval / rhs.eval
-  } getOrElse 1f
+case class Div(lhs: Exp, rhs: Exp) extends BinOp
+
+object Exp {
+  import scala.util.Try
+  def eval(exp: Exp, st: ST): Float = exp match {
+    case Con(value) => value
+    case Var(name) => st(name)
+    case Add(lhs, rhs) => eval(lhs, st) + eval(rhs, st)
+    case Sub(lhs, rhs) => eval(lhs, st) - eval(rhs, st)
+    case Mul(lhs, rhs) => eval(lhs, st) * eval(rhs, st)
+    case Div(lhs, rhs) => Try(eval(lhs, st) / eval(rhs, st)).getOrElse(1f)
+  }
 }

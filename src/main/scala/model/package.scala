@@ -1,6 +1,5 @@
 
-import scala.collection.immutable._
-import scala.collection.mutable
+import scala.collection.immutable.Map
 
 package object model {
   type ST = Map[Symbol, Float]
