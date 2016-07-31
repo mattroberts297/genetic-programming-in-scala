@@ -1,0 +1,11 @@
+FullTreeDepthOne.png filter=lfs diff=lfs merge=lfs -text
+FullTreeDepthThree.png filter=lfs diff=lfs merge=lfs -text
+FullTreeDepthTwo.png filter=lfs diff=lfs merge=lfs -text
+FullTrees.png filter=lfs diff=lfs merge=lfs -text
+GrowTrees.png filter=lfs diff=lfs merge=lfs -text
+SecondDegreePolynomial.png filter=lfs diff=lfs merge=lfs -text
+ThirdDegreePolynomial.png filter=lfs diff=lfs merge=lfs -text
+SecondDegreePolynomial.pdf filter=lfs diff=lfs merge=lfs -text
+ThirdDegreePolynomial.pdf filter=lfs diff=lfs merge=lfs -text
+Trees.graffle filter=lfs diff=lfs merge=lfs -text
+Polynomials.numbers filter=lfs diff=lfs merge=lfs -text

@@ -9,17 +9,18 @@ import scala.util.Random
 import model._
 
 object Main extends App with Logging {
-  val population = 10000
+  import GP._
+  val count = 10000
   val maxDepth = 10
   val terminalSet = IndexedSeq(Var('x)) ++ 1f.to(5f, 1f).map(Con)
   val functionSet = IndexedSeq(Add, Sub, Div, Mul)
+  val initial = rampHalfHalf(count, maxDepth, functionSet, terminalSet).toVector
+
   def pow(a: Float, b: Float): Float = Math.pow(a, b).toFloat
   val expected = (-1f).to(1f, 0.05f).map(x => (Map('x -> x), pow(x, 2) - x - 2))
-
 //  val expected = (-3f).to(3f, 0.05f).map(x => (Map('x -> x), pow(x,3) / 4 + 3 * pow(x, 2) / 4 - 3 * x / 2 - 2))
-  val trees = GP.rampHalfHalf(population, maxDepth, functionSet, terminalSet).toVector
   def criteria(fitness: Float): Boolean = fitness < 0.01f
-  val fitTree = GP.run(trees, expected, criteria)
+  val fitTree = run(initial, expected, criteria)
   log.debug(s"Fittest tree: ${fitTree}")
   log.debug("expected\t\tactual")
   expected.foreach { case (symbols, expected) =>

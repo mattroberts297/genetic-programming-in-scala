@@ -127,14 +127,14 @@ From looking at both the AST and the chart you can hopefully see that the third 
 
 ### Generating a population of programs
 
-In GP, the leafs of an AST, whether they be constants or variables, are referred to as the terminal set. The branches whether they be unary, binary or some other arity function are referred to as the function set. So, using the AST defined above we can create the following terminal and functional sets:
+In GP, the leafs of an AST, whether they be constants or variables, are referred to as the terminal set. The branches whether they be unary, binary or some other arity function are referred to as the function set. Using the AST defined above the following terminal and functional sets can be created:
 
 ```scala
 val terminalSet = IndexedSeq(Var('x)) ++ 1f.to(5f, 1f).map(Con)
 val functionSet = IndexedSeq(Add, Sub, Div, Mul)
 ```
 
-With these sets it's possible to grow an AST of some arbitrary depth `depth`. The simplest way to do this is to create a `full` tree. The algorithm is reasonably simple. If the depth has been reached then return a random terminal from the terminal set. Otherwise return a random function passing the result of the next recursion as it's argument(s). Here is a method that does that:
+With these sets it's possible to generate an AST of some arbitrary depth `depth`. The simplest way to do this is to create a `full` tree. The algorithm is reasonably simple. If the depth has been reached then return a random terminal from the terminal set. Otherwise return a random function passing the result of the next recursion as it's argument(s). Here is a method that does that:
 
 ```scala
 def full(
@@ -156,7 +156,7 @@ def random[T](elements: IndexedSeq[T]): T = {
 }
 ```
 
-Here are some example ASTs with depths `1`, `2` and `3` generated with by the `full` method:
+Here are some example ASTs with depths `1`, `2` and `3` generated with the `full` method:
 
 ![Full trees](FullTrees.png "Full trees")
 
@@ -185,3 +185,52 @@ def grow(
 def random(): Float = Random.nextFloat()
 ```
 
+Here are three example ASTs all of depth `3` generated with `grow` method:
+
+![Grow trees](GrowTrees.png "Grow trees")
+
+These two methods can be composed together to create the method `rampHalfHalf`. The idea behind this is to use `grow` for one half of the population and `full` for the other. Further, the method starts at `depth` 1 and ramps up to some `maxDepth` (as opposed to all trees being the same `depth`):
+
+```scala
+def rampHalfHalf(
+      count: Int,
+      maxDepth: Int,
+      functions: IndexedSeq[(Exp, Exp) => Exp],
+      terminals: IndexedSeq[Exp]): Set[Exp] = {
+    @tailrec
+    def loop(acc: Set[Exp], i: Int, depth: Int): Set[Exp] = {
+      if(i == count) {
+        acc
+      } else {
+        val tree = if (i % 2 == 0) {
+          full(depth, functions, terminals)
+        } else {
+          grow(depth, functions, terminals)
+        }
+        val nextDepth = if (depth == maxDepth) 1 else depth + 1
+        if (acc.contains(tree)) {
+          loop(acc, i, nextDepth)
+        } else {
+          loop(acc + tree, i + 1, nextDepth)
+        }
+      }
+    }
+    loop(Set.empty, 0, 1)
+  }
+```
+
+The method above is a little finicky for several reasons. First, instead of comparing `acc.size` to `count` the value `i` is used. This is because the `size` method on set is inefficient. Second, if the `acc` set already contains a tree then `i` is not incremented. Third, and contrary to `i`, `depth` is always incremented unless the `maxDepth` has been reached and in this case it is set to `1`. This is because, especially for large values of `count`, it is possible that all permutations of trees at a certain `depth` have been generated. If `depth` were not incremented then the recursion could be infinite.
+
+With the above, it is now possible to create an initial population:
+
+```scala
+val count = 10000
+val maxDepth = 10
+val terminalSet = IndexedSeq(Var('x)) ++ 1f.to(5f, 1f).map(Con)
+val functionSet = IndexedSeq(Add, Sub, Div, Mul)
+val initial = rampHalfHalf(count, maxDepth, functionSet, terminalSet).toVector
+```
+
+# Evaluating fitness
+
+Evaluating fitness is easier than you might think. Given some input there is an expected output. The trick is to select the right inputs. Once that is done, however, evaluating fitness is just a matter of measuring the difference between the expected and actual outputs. For anyone who has done unit testing with multiple test cases this should feel familiar. The only part that might feel alien is measuring the difference and then reducing that measure into one figure for all test cases. For anyone with a machine learning background this will feel quite comfortable.
