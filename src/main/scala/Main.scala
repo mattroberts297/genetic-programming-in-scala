@@ -2,42 +2,46 @@
 import scala.annotation.tailrec
 import scala.collection.immutable._
 import scala.collection.mutable
-import org.slf4s.Logging
 
+import org.slf4s.Logging
 import scala.util.Random
 
 import model._
 
 object Main extends App with Logging {
   import GP._
-  val count = 10000
-  val maxDepth = 10
+  import FloatMath._
+  val count = 100000
+  val maxDepth = 5
   val terminalSet = IndexedSeq(Var('x)) ++ 1f.to(5f, 1f).map(Con)
   val functionSet = IndexedSeq(Add, Sub, Div, Mul)
   val initial = rampHalfHalf(count, maxDepth, functionSet, terminalSet).toVector
-
-  def pow(a: Float, b: Float): Float = Math.pow(a, b).toFloat
-  val expected = (-1f).to(1f, 0.05f).map(x => (Map('x -> x), pow(x, 2) - x - 2))
-//  val expected = (-3f).to(3f, 0.05f).map(x => (Map('x -> x), pow(x,3) / 4 + 3 * pow(x, 2) / 4 - 3 * x / 2 - 2))
+//  val cases = (-1f).to(1f, 0.05f).map(x => (Map('x -> x), pow(x, 2) - x - 2)).toMap
+  val cases = (-3f).to(3f, 0.05f).map(x => (Map('x -> x), pow(x,3) / 4 + 3 * pow(x, 2) / 4 - 3 * x / 2 - 2)).toMap
   def criteria(fitness: Float): Boolean = fitness < 0.01f
-  val fitTree = run(initial, expected, criteria)
+  val fitTree = run(initial, cases, fitness, criteria)
   log.debug(s"Fittest tree: ${fitTree}")
   log.debug("expected\t\tactual")
-  expected.foreach { case (symbols, expected) =>
+  cases.foreach { case (symbols, expected) =>
     log.debug(s"${expected}\t${Exp.eval(fitTree, symbols)}")
   }
+}
+
+object FloatMath {
+  def pow(a: Float, b: Float): Float = Math.pow(a, b).toFloat
 }
 
 object GP extends Logging {
   def run(
       initial: IndexedSeq[Exp],
-      expected: Seq[(ST, Float)],
+      cases: Map[ST, Float],
+      fitness: Map[ST, Float] => Exp => Float,
       criteria: Float => Boolean,
       maxRuns: Int = 1000): Exp = {
     @tailrec
     def loop(run: Int, current: IndexedSeq[Exp]): Exp = {
       val treesAndFitness = current.map { tree =>
-        tree -> fitness(tree, expected)
+        tree -> fitness(cases)(tree)
       }
       val sortedTreesAndFitness = treesAndFitness.sortBy { case (_, fitness) =>
         fitness
@@ -47,37 +51,25 @@ object GP extends Logging {
       if (criteria(minFitness) || run == maxRuns) {
         topTree
       } else {
+        val replicas = sortedTrees.take(current.length / 100 * 19)
+//        replicas.foreach(exp => set += exp)
+        val mutants = 1.to(current.length / 100).map { _ =>
+          random(sortedTrees)
+        }.map(e => mutate(e))
+//        mutants.foreach(exp => set += exp)
         // todo make immutable
         val set = mutable.Set.empty[Exp]
-        val replicas = sortedTrees.take(current.length / 100 * 19)
-        replicas.foreach(exp => set += exp)
-        val mutants = 1.to(current.length / 100).map { _ =>
-          sortedTrees(Random.nextInt(sortedTrees.length))
-        }.map(e => mutate(e))
-        mutants.foreach(exp => set += exp)
-        while (set.size < current.length) {
+        while (set.size < current.length / 100 * 80) {
           set += crossover(
             tournament(random(treesAndFitness), random(treesAndFitness)),
             tournament(random(treesAndFitness), random(treesAndFitness)))
         }
-        val replicasAndCrossovers = set.toVector
+        val replicasAndCrossovers = set.toVector ++ replicas ++ mutants
         log.debug(s"run=${run}, minFitness=${minFitness}")
         loop(run + 1, replicasAndCrossovers)
       }
     }
     loop(1, initial)
-  }
-
-  def fitness(tree: Exp, expected: Seq[(ST, Float)]): Float = {
-    expected.foldLeft(0f) { case (acc, (symbols, expected)) =>
-      acc + Math.pow((expected - Exp.eval(tree, symbols)), 2).toFloat
-    }
-  }
-
-  def tournament(a: (Exp, Float), b: (Exp, Float)): Exp = {
-    val (aExp, aFit) = a
-    val (bExp, bFit) = b
-    if (aFit < bFit) aExp else bExp
   }
 
   def full(
@@ -137,6 +129,21 @@ object GP extends Logging {
       }
     }
     loop(Set.empty, 0, 1)
+  }
+
+  def fitness(cases: Map[ST, Float])(tree: Exp): Float = {
+    cases map { case (symbols, expected) =>
+      val actual = Exp.eval(tree, symbols)
+      Math.abs(expected - actual)
+    } reduce { (a, b) =>
+      a + b
+    }
+  }
+
+  def tournament(a: (Exp, Float), b: (Exp, Float)): Exp = {
+    val (aExp, aFit) = a
+    val (bExp, bFit) = b
+    if (aFit < bFit) aExp else bExp
   }
 
   def crossover(left: Exp, right: Exp): Exp = {
