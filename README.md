@@ -252,7 +252,7 @@ val initial = rampHalfHalf(count, maxDepth, functionSet, terminalSet).toVector
 
 ### Evaluating fitness
 
-Evaluating fitness is easier than you might think. Given some input there is an expected output. The trick is to select the right inputs. Once that is done, however, evaluating fitness is just a matter of measuring the difference between the expected and actual outputs produced by a tree. For anyone who has done unit testing with multiple test cases this should feel familiar. The only part that might feel alien is measuring the difference and then reducing that measure into one figure for all test cases. For anyone with a machine learning background this will feel quite natural though.
+Evaluating fitness is easier than you might think. Given some input there is an expected output. Then evaluating fitness is just a matter of measuring the difference between the expected and actual outputs produced by evaluating a function. For anyone who has done unit testing with multiple test cases this should feel familiar. The next step, namely reducing those differences into one measure for all test cases, may feel decidely unfamiliar. For anyone with a machine learning background this will feel quite natural though.
 
 In our example the inputs are stored in the symbol table. The symbol table therefore is the only input. We also know how to calculate the result of the polynomial expression, so we can calculate the expected values for a given set of inputs:
 
@@ -300,7 +300,7 @@ The next step is to evolve the initial population into a new population. There a
 
 #### Mutation
 
-The idea behind mutation is reasonably straight forward even if the implementation is a little involved. The idea is to take a tree, pick a random subtree and replace it with another tree grown from the function and terminal sets:
+Mutation introduces a degree of randomness and brute force into the overall approach. As a result, most GP enthusiasts would recommend keeping it's use to a minimum. That said, it is important because it can help bump a GP run out of a local optimum. The idea is to take a tree, pick a random subtree within it's branches and replace it with another tree grown from the function and terminal sets:
 
 ###### model/GP.scala
 ```scala
@@ -315,23 +315,28 @@ The idea behind mutation is reasonably straight forward even if the implementati
   }
 ```
 
-Note the use of two new functions `random` and `replace` and one old function `grow`. The first function invokes `collect` to convert the `Exp` to `IndexedSeq[Exp]` containing `n` elements where `n` is the total number of `Exp` making up the tree. The result is then passsed to the previously defined `random` function that takes an `IndexedSeq[T]`: 
+Note the use of two new functions `random` and `replace` and one old function `grow`. The first function invokes `collectAll` to convert the `Exp` into an `IndexedSeq[Exp]` containing the root of the tree and all its subtrees using the generic `collect` function and a, not so partial, anonymous function. The result is then passsed to the previously defined `random` function that takes an `IndexedSeq[T]`: 
 
 ###### model/GP.scala
 ```scala  
   def random(tree: Exp): Exp = {
-    random(collect(tree))
+    random(collectAll(tree))
+  }
+
+  def collectAll(tree: Exp): IndexedSeq[Exp] = {
+    collect(tree) { case e => e }
   }
   
-  def collect(tree: Exp): IndexedSeq[Exp] = {
-    def collect(acc: IndexedSeq[Exp], subtree: Exp): IndexedSeq[Exp] = {
+  def collect[T](tree: Exp)(pf: PartialFunction[Exp, T]): IndexedSeq[T] = {
+    def loop(subtree: Exp, acc: IndexedSeq[T]): IndexedSeq[T] = {
+      val result = if (pf.isDefinedAt(subtree)) acc :+ pf(subtree) else acc
       subtree match {
-        case v: Var => IndexedSeq(v) ++ acc
-        case c: Con => IndexedSeq(c) ++ acc
-        case o: BinOp => IndexedSeq(o) ++ collect(acc, o.lhs) ++ collect(acc, o.rhs)
+        case v: Var => result
+        case c: Con => result
+        case o: BinOp => result ++ loop(o.lhs, acc) ++ loop(o.rhs, acc)
       }
     }
-    collect(IndexedSeq.empty, tree)
+    loop(tree, IndexedSeq.empty[T])
   }
 ```
 
@@ -355,6 +360,8 @@ The second function is responsible for replacing some node `target` in the origi
 
 #### Crossover
 
+Crossover is to take two trees and 
+
 ```scala
   def crossover(left: Exp, right: Exp): Exp = {
     val replacement = biasedRandom(left)
@@ -372,6 +379,17 @@ The second function is responsible for replacing some node `target` in the origi
       collectTerminals(tree)
     } else {
       ops
+    }
+  }
+
+  def collectOps(tree: Exp): IndexedSeq[Exp] = {
+    collect(tree) { case o: BinOp => o }
+  }
+
+  def collectTerminals(tree: Exp): IndexedSeq[Exp] = {
+    collect(tree) {
+      case v: Var => v
+      case c: Con => c
     }
   }
 ```

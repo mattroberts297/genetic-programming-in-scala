@@ -200,6 +200,10 @@ object GP extends Logging {
     loop(tree, IndexedSeq.empty[T])
   }
 
+  def collectAll(tree: Exp): IndexedSeq[Exp] = {
+    collect(tree) { case e => e }
+  }
+
   def collectOps(tree: Exp): IndexedSeq[Exp] = {
     collect(tree) { case o: BinOp => o }
   }
@@ -209,10 +213,6 @@ object GP extends Logging {
       case v: Var => v
       case c: Con => c
     }
-  }
-
-  def collectAll(tree: Exp): IndexedSeq[Exp] = {
-    collect(tree) { case e => e }
   }
 
   def biasedCollect(tree: Exp): IndexedSeq[Exp] = {
