@@ -1,4 +1,5 @@
 
+import scala.List
 import scala.annotation.tailrec
 import scala.collection.immutable._
 import scala.collection.mutable
@@ -8,6 +9,12 @@ import scala.util.Random
 
 import model._
 
+case class InitParams(
+  count: Int,
+  maxDepth: Int,
+  functions: IndexedSeq[(Exp, Exp) => Exp],
+  terminals: IndexedSeq[Exp])
+
 object Main extends App with Logging {
   import GP._
   import FloatMath._
@@ -15,11 +22,11 @@ object Main extends App with Logging {
   val maxDepth = 5
   val terminalSet = IndexedSeq(Var('x)) ++ 1f.to(5f, 1f).map(Con)
   val functionSet = IndexedSeq(Add, Sub, Div, Mul)
-  val initial = rampHalfHalf(count, maxDepth, functionSet, terminalSet).toVector
-//  val cases = (-1f).to(1f, 0.05f).map(x => (Map('x -> x), pow(x, 2) - x - 2)).toMap
-  val cases = (-3f).to(3f, 0.05f).map(x => (Map('x -> x), pow(x,3) / 4 + 3 * pow(x, 2) / 4 - 3 * x / 2 - 2)).toMap
+  val initParams = InitParams(count, maxDepth, functionSet, terminalSet)
+  val cases = (-1f).to(1f, 0.05f).map(x => (Map('x -> x), pow(x, 2) - x - 2)).toMap
+//  val cases = (-3f).to(3f, 0.05f).map(x => (Map('x -> x), pow(x,3) / 4 + 3 * pow(x, 2) / 4 - 3 * x / 2 - 2)).toMap
   def criteria(fitness: Float): Boolean = fitness < 0.01f
-  val fitTree = run(initial, cases, fitness, criteria)
+  val fitTree = run(functionSet, terminalSet, cases, fitness, criteria, populationSize = 1000)
   log.debug(s"Fittest tree: ${fitTree}")
   log.debug("expected\t\tactual")
   cases.foreach { case (symbols, expected) =>
@@ -33,11 +40,16 @@ object FloatMath {
 
 object GP extends Logging {
   def run(
-      initial: IndexedSeq[Exp],
+      functionSet: IndexedSeq[(Exp, Exp) => Exp],
+      terminalSet: IndexedSeq[Exp],
       cases: Map[ST, Float],
       fitness: Map[ST, Float] => Exp => Float,
       criteria: Float => Boolean,
-      maxRuns: Int = 1000): Exp = {
+      maxRuns: Int = 1000,
+      maxDepth: Int = 5,
+      populationSize: Int = 100000): Exp = {
+    val initial = rampHalfHalf(populationSize, maxDepth, functionSet, terminalSet).toVector
+
     @tailrec
     def loop(run: Int, current: IndexedSeq[Exp]): Exp = {
       val treesAndFitness = current.map { tree =>
@@ -55,7 +67,7 @@ object GP extends Logging {
 //        replicas.foreach(exp => set += exp)
         val mutants = 1.to(current.length / 100).map { _ =>
           random(sortedTrees)
-        }.map(e => mutate(e))
+        }.map(e => mutate(functionSet, terminalSet, maxDepth, e))
 //        mutants.foreach(exp => set += exp)
         // todo make immutable
         val set = mutable.Set.empty[Exp]
@@ -69,6 +81,7 @@ object GP extends Logging {
         loop(run + 1, replicasAndCrossovers)
       }
     }
+
     loop(1, initial)
   }
 
@@ -152,12 +165,13 @@ object GP extends Logging {
     replace(right, target, replacement)
   }
 
-  def mutate(exp: Exp): Exp = {
-    val functions = Main.functionSet
-    val terminals = Main.terminalSet
-    val depth = Main.maxDepth
+  def mutate(
+      functionSet: IndexedSeq[(Exp, Exp) => Exp],
+      terminalSet: IndexedSeq[Exp],
+      maxDepth: Int,
+      exp: Exp): Exp = {
     val target = random(exp)
-    val replacement = grow(depth, functions, terminals)
+    val replacement = grow(maxDepth, functionSet, terminalSet)
     replace(exp, target, replacement)
   }
 
@@ -171,6 +185,29 @@ object GP extends Logging {
       case Sub(lhs, rhs) => Sub(repl(lhs), repl(rhs))
       case Mul(lhs, rhs) => Mul(repl(lhs), repl(rhs))
       case Div(lhs, rhs) => Div(repl(lhs), repl(rhs))
+    }
+  }
+
+  def collect2[T](tree: Exp)(pf: PartialFunction[Exp, T]): IndexedSeq[T] = {
+    def loop(subtree: Exp, acc: IndexedSeq[T] = IndexedSeq.empty[T]): IndexedSeq[T] = {
+      val result = if (pf.isDefinedAt(subtree)) acc :+ pf(subtree) else acc
+      subtree match {
+        case v: Var => result
+        case c: Con => result
+        case o: BinOp => result ++ loop(o.lhs, acc) ++ loop(o.rhs, acc)
+      }
+    }
+    loop(tree)
+  }
+
+  def collectOps2(tree: Exp): IndexedSeq[Exp] = {
+    collect2(tree) { case o: BinOp => o }
+  }
+
+  def collectTerminals2(tree: Exp): IndexedSeq[Exp] = {
+    collect2(tree) {
+      case v: Var => v
+      case c: Con => c
     }
   }
 

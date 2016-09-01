@@ -260,7 +260,7 @@ In our example the inputs are stored in the symbol table. The symbol table there
 val cases = (-1f).to(1f, 0.05f).map(x => (Map('x -> x), pow(x, 2) - x - 2)).toMap
 ```
 
-The type of `cases` is `Map[ST, Float]`. In other words, it maps symbol tables (inputs) to expected results. Now we need to use these cases to evaluate the fitness of a given tree. To do this, first we have to evaluate the each case against the tree and store the absolute difference between the actual and expected results. Then we have to sum these differences to give one final figure for all cases:
+The type of `cases` is `Map[ST, Float]`. In other words, it maps symbol tables (inputs) to expected results. Now we need to use these cases to evaluate the fitness of a given tree. To do this, first we have to evaluate each case against the tree and store the absolute difference between the actual and expected results. Then we have to sum these differences to give one final figure for all cases:
 
 ###### model/GP.scala
 ```scala
@@ -300,7 +300,86 @@ The next step is to evolve the initial population into a new population. There a
 
 #### Mutation
 
+The idea behind mutation is reasonably straight forward even if the implementation is a little involved. The idea is to take a tree, pick a random subtree and replace it with another tree grown from the function and terminal sets:
+
+###### model/GP.scala
+```scala
+  def mutate(
+      functionSet: IndexedSeq[(Exp, Exp) => Exp],
+      terminalSet: IndexedSeq[Exp],
+      maxDepth: Int,
+      exp: Exp): Exp = {
+    val target = random(exp)
+    val replacement = grow(maxDepth, functionSet, terminalSet)
+    replace(exp, target, replacement)
+  }
+```
+
+Note the use of two new functions `random` and `replace` and one old function `grow`. The first function invokes `collect` to convert the `Exp` to `IndexedSeq[Exp]` containing `n` elements where `n` is the total number of `Exp` making up the tree. The result is then passsed to the previously defined `random` function that takes an `IndexedSeq[T]`: 
+
+###### model/GP.scala
+```scala  
+  def random(tree: Exp): Exp = {
+    random(collect(tree))
+  }
+  
+  def collect(tree: Exp): IndexedSeq[Exp] = {
+    def collect(acc: IndexedSeq[Exp], subtree: Exp): IndexedSeq[Exp] = {
+      subtree match {
+        case v: Var => IndexedSeq(v) ++ acc
+        case c: Con => IndexedSeq(c) ++ acc
+        case o: BinOp => IndexedSeq(o) ++ collect(acc, o.lhs) ++ collect(acc, o.rhs)
+      }
+    }
+    collect(IndexedSeq.empty, tree)
+  }
+```
+
+The second function is responsible for replacing some node `target` in the original expression `exp` with a `replacement`. The method uses reference equality instead of value equality because there may be many subtrees with value equality. This works because the `mutate` method picks an element from the original tree. The method performs a recursive descent through the tree. The first `case` in the `match` statement checks for reference equality and if it is found then returns the `replacement`. All other cases perform a copy. If the target does not exist then a copy of the original expression is returned:
+
+###### model/GP.scala
+```scala
+  def replace(exp: Exp, target: Exp, replacement: Exp): Exp = {
+    def repl(exp: Exp) = replace(exp, target, replacement)
+    exp match {
+      case exp: Exp if (exp.eq(target)) => replacement
+      case Con(value) => Con(value)
+      case Var(symbol) => Var(symbol)
+      case Add(lhs, rhs) => Add(repl(lhs), repl(rhs))
+      case Sub(lhs, rhs) => Sub(repl(lhs), repl(rhs))
+      case Mul(lhs, rhs) => Mul(repl(lhs), repl(rhs))
+      case Div(lhs, rhs) => Div(repl(lhs), repl(rhs))
+    }
+  }
+```
+
 #### Crossover
+
+```scala
+  def crossover(left: Exp, right: Exp): Exp = {
+    val replacement = biasedRandom(left)
+    val target = biasedRandom(right)
+    replace(right, target, replacement)
+  }
+  
+  def biasedRandom(tree: Exp): Exp = {
+    random(biasedCollect(tree))
+  }
+  
+  def biasedCollect(tree: Exp): IndexedSeq[Exp] = {
+    val ops = collectOps(tree)
+    if (random() > 0.9 || ops.isEmpty) {
+      collectTerminals(tree)
+    } else {
+      ops
+    }
+  }
+```
+
+// TODO Look at writing a generic collect! Maybe with a filter?
+
+
+Also talk about tournament.
 
 #### Replication
 
