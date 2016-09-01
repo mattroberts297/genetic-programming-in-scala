@@ -188,8 +188,8 @@ object GP extends Logging {
     }
   }
 
-  def collect2[T](tree: Exp)(pf: PartialFunction[Exp, T]): IndexedSeq[T] = {
-    def loop(subtree: Exp, acc: IndexedSeq[T] = IndexedSeq.empty[T]): IndexedSeq[T] = {
+  def collect[T](tree: Exp)(pf: PartialFunction[Exp, T]): IndexedSeq[T] = {
+    def loop(subtree: Exp, acc: IndexedSeq[T]): IndexedSeq[T] = {
       val result = if (pf.isDefinedAt(subtree)) acc :+ pf(subtree) else acc
       subtree match {
         case v: Var => result
@@ -197,29 +197,22 @@ object GP extends Logging {
         case o: BinOp => result ++ loop(o.lhs, acc) ++ loop(o.rhs, acc)
       }
     }
-    loop(tree)
+    loop(tree, IndexedSeq.empty[T])
   }
 
-  def collectOps2(tree: Exp): IndexedSeq[Exp] = {
-    collect2(tree) { case o: BinOp => o }
+  def collectOps(tree: Exp): IndexedSeq[Exp] = {
+    collect(tree) { case o: BinOp => o }
   }
 
-  def collectTerminals2(tree: Exp): IndexedSeq[Exp] = {
-    collect2(tree) {
+  def collectTerminals(tree: Exp): IndexedSeq[Exp] = {
+    collect(tree) {
       case v: Var => v
       case c: Con => c
     }
   }
 
-  def collect(tree: Exp): IndexedSeq[Exp] = {
-    def collect(acc: IndexedSeq[Exp], subtree: Exp): IndexedSeq[Exp] = {
-      subtree match {
-        case v: Var => IndexedSeq(v) ++ acc
-        case c: Con => IndexedSeq(c) ++ acc
-        case o: BinOp => IndexedSeq(o) ++ collect(acc, o.lhs) ++ collect(acc, o.rhs)
-      }
-    }
-    collect(IndexedSeq.empty, tree)
+  def collectAll(tree: Exp): IndexedSeq[Exp] = {
+    collect(tree) { case e => e }
   }
 
   def biasedCollect(tree: Exp): IndexedSeq[Exp] = {
@@ -235,33 +228,10 @@ object GP extends Logging {
     random(biasedCollect(tree))
   }
 
-  def collectTerminals(tree: Exp): IndexedSeq[Exp] = {
-    def collect(acc: IndexedSeq[Exp], subtree: Exp): IndexedSeq[Exp] = {
-      subtree match {
-        case v: Var => IndexedSeq(v) ++ acc
-        case c: Con => IndexedSeq(c) ++ acc
-        case o: BinOp => collect(acc, o.lhs) ++ collect(acc, o.rhs)
-      }
-    }
-    collect(IndexedSeq.empty, tree)
-  }
-
-  def collectOps(tree: Exp): IndexedSeq[Exp with BinOp] = {
-    def collectOps(acc: IndexedSeq[Exp with BinOp], subtree: Exp): IndexedSeq[Exp with BinOp] = {
-      subtree match {
-        case v: Var => acc
-        case c: Con => acc
-        case o: BinOp =>
-          IndexedSeq(o) ++ collectOps(acc, o.lhs) ++ collectOps(acc, o.rhs)
-      }
-    }
-    collectOps(IndexedSeq.empty, tree)
-  }
-
   def random(): Float = Random.nextFloat()
 
   def random(tree: Exp): Exp = {
-    random(collect(tree))
+    random(collectAll(tree))
   }
 
   def random[T](elements: IndexedSeq[T]): T = {
