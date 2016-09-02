@@ -300,14 +300,14 @@ The next step is to evolve the initial population into a new population. There a
 
 #### Mutation
 
-Mutation introduces a degree of randomness and brute force into the overall approach. As a result, most GP enthusiasts would recommend keeping it's use to a minimum. That said, it is important because it can help bump a GP run out of a local optimum. The idea is to take a tree, pick a random subtree within it's branches and replace it with another tree grown from the function and terminal sets:
+Mutation will introduce a degree of randomness and brute force into the overall approach. Most GP enthusiasts would recommend keeping it's use to a minimum (and I agree). That said, it is important because it can help bump a GP run out of a local optimum. The idea is to take a tree, pick a random subtree within it's branches and replace it with another tree grown from the function and terminal sets:
 
 ###### model/GP.scala
 ```scala
   def mutate(
       functionSet: IndexedSeq[(Exp, Exp) => Exp],
       terminalSet: IndexedSeq[Exp],
-      maxDepth: Int,
+      maxDepth: Int)(
       exp: Exp): Exp = {
     val target = random(exp)
     val replacement = grow(maxDepth, functionSet, terminalSet)
@@ -358,10 +358,13 @@ The second function is responsible for replacing some node `target` in the origi
   }
 ```
 
-#### Crossover
+#### Crossover and Tournament
 
-Crossover is to take two trees and 
+##### Crossover
 
+Crossover is responsible for breeding new trees. It does this by taking two parents (`left` and `right`) and selecting random subtree from each (`replacement` and `target`). The random selection is actually quite heavily biased in favour of operators to avoid pruning trees to aggressively. A copy of the `right` tree is made with the `target` replaced with the `replacement`:
+
+###### model/GP.scala
 ```scala
   def crossover(left: Exp, right: Exp): Exp = {
     val replacement = biasedRandom(left)
@@ -394,14 +397,27 @@ Crossover is to take two trees and
   }
 ```
 
-// TODO Look at writing a generic collect! Maybe with a filter?
+##### Tournament
 
+Tournament is the process by which two parents are selected for crossover. The method takes two trees and their respective fitness values and returns the fittest tree:
 
-Also talk about tournament.
+###### model/GP.scala
+```scala
+  def tournament(a: (Exp, Float), b: (Exp, Float)): Exp = {
+    val (aExp, aFit) = a
+    val (bExp, bFit) = b
+    if (aFit < bFit) aExp else bExp
+  }
+```
 
 #### Replication
 
-The last algorithm is very simple. Take the initial population, calculate the fitness, order the population and take a percentage (let's say 19%) of the fittest trees and copy them across to the next population:
+The last algorithm is very simple. Given a population, take a percentage of the fittest individuals and carry them across to the next population. Given that we're now looking at the population as a whole it seems like a sensible point to put everything together.
+
+
+
+
+Take the initial population, calculate the fitness, order the population and take a percentage (let's say 19%) of the fittest trees and copy them across to the next population:
 
 ```scala
 import scala.collection.immutable._

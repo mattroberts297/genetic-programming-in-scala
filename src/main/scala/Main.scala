@@ -67,7 +67,7 @@ object GP extends Logging {
 //        replicas.foreach(exp => set += exp)
         val mutants = 1.to(current.length / 100).map { _ =>
           random(sortedTrees)
-        }.map(e => mutate(functionSet, terminalSet, maxDepth, e))
+        }.map(e => mutate(functionSet, terminalSet, maxDepth)(e))
 //        mutants.foreach(exp => set += exp)
         // todo make immutable
         val set = mutable.Set.empty[Exp]
@@ -83,6 +83,21 @@ object GP extends Logging {
     }
 
     loop(1, initial)
+  }
+
+  def mutateAll(
+      functionSet: IndexedSeq[(Exp, Exp) => Exp],
+      terminalSet: IndexedSeq[Exp],
+      maxDepth: Int)(
+      trees: IndexedSeq[Exp],
+      percent: Float = 0.1f,
+      seen: Set[Exp]= Set.empty[Exp]): IndexedSeq[Exp] = {
+    def mutateOne = mutate(functionSet, terminalSet, maxDepth)_
+    def loop(acc: Set[Exp]): IndexedSeq[Exp] = {
+
+      ???
+    }
+    ???
   }
 
   def full(
@@ -168,7 +183,7 @@ object GP extends Logging {
   def mutate(
       functionSet: IndexedSeq[(Exp, Exp) => Exp],
       terminalSet: IndexedSeq[Exp],
-      maxDepth: Int,
+      maxDepth: Int)(
       exp: Exp): Exp = {
     val target = random(exp)
     val replacement = grow(maxDepth, functionSet, terminalSet)
