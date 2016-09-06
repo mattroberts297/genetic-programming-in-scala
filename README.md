@@ -68,7 +68,7 @@ And a type alias from ST to Map[Symbol, Float] for the symbol table:
 ###### model/package.scala
 
 ```scala
-import scala.collection.immutable._
+import scala.collection.immutable.Map
 
 package object model {
   type ST = Map[Symbol, Float]
@@ -150,12 +150,10 @@ val terminalSet = IndexedSeq(Var('x)) ++ 1f.to(5f, 1f).map(Con)
 val functionSet = IndexedSeq(Add, Sub, Div, Mul)
 ```
 
-With these sets it's possible to generate an AST of some arbitrary depth `depth`. The simplest way to do this is to create a `full` tree. The algorithm is reasonably simple. If the depth has been reached then return a random terminal from the terminal set. Otherwise return a random function from the function set and use the result of the next recursion as its arguments. Here is a method that does that:
+With these sets it's possible to generate an AST of some arbitrary depth `depth`. The simplest way to do this is to create a `full` tree. The algorithm is reasonably simple. If the depth has been reached then return a random terminal from the terminal set. Otherwise return a random function from the function set and use the result of the next recursion as its arguments. Here is a function that does that:
 
 ###### GP.scala
 ```scala
-import scala.collection.immutable._
-
 def full(
     depth: Int,
     functions: IndexedSeq[(Exp, Exp) => Exp],
@@ -174,6 +172,20 @@ def random[T](elements: IndexedSeq[T]): T = {
   elements(Random.nextInt(elements.length))
 }
 ```
+
+The `full` function resides in an object named `GP`. I omit the following "boiler plate" when discussing methods in that object:
+
+```scala
+import scala.annotation.tailrec
+import scala.collection.immutable._
+import scala.util.Random
+import org.slf4s.Logging
+import model._
+
+object GP with Logging {
+  // Functions go here.
+}
+``` 
 
 Here are some example ASTs with depths `1`, `2` and `3` generated with the `full` method:
 
@@ -411,113 +423,166 @@ Tournament is the process by which two parents are selected for crossover. The m
 
 ###### GP.scala
 ```scala
-  def tournament(a: (Exp, Float), b: (Exp, Float)): Exp = {
-    val (aExp, aFit) = a
-    val (bExp, bFit) = b
-    if (aFit < bFit) aExp else bExp
-  }
+def tournament(a: (Exp, Float), b: (Exp, Float)): Exp = {
+  val (aExp, aFit) = a
+  val (bExp, bFit) = b
+  if (aFit < bFit) aExp else bExp
+}
 ```
 
 #### Replication
 
-The last algorithm is very simple. Given a population, take a percentage of the fittest individuals and carry them across to the next population. The method to implement replication will have to take a population of trees as it's input. Note that up until now each algorithm has taken one or two trees as inputs. Here is the `replicas` function:
+The last algorithm is very simple. Given a population, take a percentage of the fittest individuals and carry them across to the next population. The method to implement replication will have to take a population of trees as it's input. Note that up until now each algorithm has taken one or two trees as inputs. With that in mind, here is the `replicas` function:
 
 ###### GP.scala
 ```scala
-  def replicas(
-      treesAndFitness: IndexedSeq[(Exp, Float)],
-      percent: Float = 0.19f,
-      acc: Set[Exp] = Set.empty[Exp]): Set[Exp] = {
-    val length = acc.size + (treesAndFitness.length.toFloat * percent).toInt
-    val sortedTrees = treesAndFitness.
-      sortBy { case (_, fitness) => fitness }.
-      map { case (exp, _) => exp }
-    @tailrec
-    def loop(acc: Set[Exp], remaining: IndexedSeq[Exp]): Set[Exp] = {
-      if (acc.size == length) {
-        acc
-      } else {
-        loop(acc + remaining.head, remaining.tail)
-      }
+def replicas(
+    treesAndFitness: IndexedSeq[(Exp, Float)],
+    percent: Float = 0.19f,
+    acc: Set[Exp] = Set.empty[Exp]): Set[Exp] = {
+  val length = acc.size + (treesAndFitness.length.toFloat * percent).toInt
+  val sortedTrees = treesAndFitness.
+    sortBy { case (_, fitness) => fitness }.
+    map { case (exp, _) => exp }
+  @tailrec
+  def loop(acc: Set[Exp], remaining: IndexedSeq[Exp]): Set[Exp] = {
+    if (acc.size == length) {
+      acc
+    } else {
+      loop(acc + remaining.head, remaining.tail)
     }
-    loop(acc, sortedTrees)
   }
+  loop(acc, sortedTrees)
+}
 ```
 
-Before putting everything together, let's create methods that wrap mutate and crossover, but take populations of trees as their arguments. Starting with `crossovers`:
+#### Crossover and mutation again
+
+Before putting everything together, let's create methods that wrap `mutate` and `crossover`, but take populations of trees as their arguments. Starting with `crossovers`:
 
 ###### GP.scala
 ```scala
-  def crossovers(
-      treesAndFitness: IndexedSeq[(Exp, Float)],
-      percent: Float = 0.8f,
-      acc: Set[Exp]= Set.empty[Exp]): Set[Exp] = {
-    val length = acc.size + (treesAndFitness.length.toFloat * percent).toInt
-    @tailrec
-    def loop(acc: Set[Exp]): Set[Exp] = {
-      if (acc.size == length) {
-        acc
-      } else {
-        loop(acc + crossover(
-          tournament(random(treesAndFitness), random(treesAndFitness)),
-          tournament(random(treesAndFitness), random(treesAndFitness))))
-      }
+def crossovers(
+    treesAndFitness: IndexedSeq[(Exp, Float)],
+    percent: Float = 0.8f,
+    acc: Set[Exp]= Set.empty[Exp]): Set[Exp] = {
+  val length = acc.size + (treesAndFitness.length.toFloat * percent).toInt
+  @tailrec
+  def loop(acc: Set[Exp]): Set[Exp] = {
+    if (acc.size == length) {
+      acc
+    } else {
+      loop(acc + crossover(
+        tournament(random(treesAndFitness), random(treesAndFitness)),
+        tournament(random(treesAndFitness), random(treesAndFitness))))
     }
-    loop(acc)
   }
+  loop(acc)
+}
 ```
 
-And finally the mutants:
+And finally the `mutants`:
 
 ###### GP.scala
 ```scala
-  def mutants(
-      functionSet: IndexedSeq[(Exp, Exp) => Exp],
-      terminalSet: IndexedSeq[Exp],
-      maxDepth: Int)(
-      trees: IndexedSeq[Exp],
-      percent: Float = 0.01f,
-      acc: Set[Exp]= Set.empty[Exp]): Set[Exp] = {
-    val length = acc.size + (trees.length.toFloat * percent).toInt
-    def mutate = GP.mutate(functionSet, terminalSet, maxDepth)_
-    @tailrec
-    def loop(acc: Set[Exp]): Set[Exp] = {
-      if (acc.size == length) {
-        acc
-      } else {
-        loop(acc + mutate(random(trees)))
-      }
+def mutants(
+    functionSet: IndexedSeq[(Exp, Exp) => Exp],
+    terminalSet: IndexedSeq[Exp],
+    maxDepth: Int)(
+    trees: IndexedSeq[Exp],
+    percent: Float = 0.01f,
+    acc: Set[Exp]= Set.empty[Exp]): Set[Exp] = {
+  val length = acc.size + (trees.length.toFloat * percent).toInt
+  def mutate = GP.mutate(functionSet, terminalSet, maxDepth)_
+  @tailrec
+  def loop(acc: Set[Exp]): Set[Exp] = {
+    if (acc.size == length) {
+      acc
+    } else {
+      loop(acc + mutate(random(trees)))
     }
-    loop(acc)
   }
+  loop(acc)
+}
 ```
 
 One thing to note is that each method takes an accumulator. This avoids the situation whereby the population is compromised of trees that are exactly the same.
 
+### Finishing touches
 
+The `run` method uses a tight loop to repeatedly evolve the initial population until some user-defined fitness criteria is reached:
 
+###### GP.scala
 ```scala
-import scala.collection.immutable._
-import model._
-import GP._
+def run(
+    functionSet: IndexedSeq[(Exp, Exp) => Exp],
+    terminalSet: IndexedSeq[Exp],
+    cases: Map[ST, Float],
+    fitness: Map[ST, Float] => Exp => Float,
+    criteria: Float => Boolean,
+    maxRuns: Int = 1000,
+    maxDepth: Int = 5,
+    populationSize: Int = 100000): Exp = {
+  val initial = rampHalfHalf(populationSize, maxDepth, functionSet, terminalSet).toVector
 
-val count = 1000
-val maxDepth = 5
-val terminalSet = IndexedSeq(Var('x)) ++ 1f.to(5f, 1f).map(Con)
-val functionSet = IndexedSeq(Add, Sub, Div, Mul)
-val initial = rampHalfHalf(count, maxDepth, functionSet, terminalSet).toVector
-def pow(a: Float, b: Float): Float = Math.pow(a, b).toFloat
-val cases = (-1f).to(1f, 0.05f).map(x => (Map('x -> x), pow(x, 2) - x - 2)).toMap
-
-val sortedTrees = initial.map { tree =>
-  tree -> fitness(cases)(tree)
-} sortBy { case (_, fitness) =>
-  fitness
-} map { case (tree, _) =>
-  tree
+  @tailrec
+  def loop(run: Int, current: IndexedSeq[Exp]): Exp = {
+    val treesAndFitness = current.map { tree => tree -> fitness(cases)(tree) }
+    val (topTree, minFitness) = fittest(treesAndFitness)
+    val mutants = GP.mutants(functionSet, terminalSet, maxDepth)_
+    log.debug(s"run=${run}, minFitness=${minFitness}")
+    if (criteria(minFitness)) {
+      topTree
+    } else {
+      loop(
+        run + 1,
+        crossovers(
+          treesAndFitness,
+          0.8f,
+          mutants(
+            current,
+            0.01f,
+            replicas(
+              treesAndFitness,
+              0.19f,
+              Set.empty))).toIndexedSeq)
+    }
+  }
+  loop(1, initial)
 }
 
-val replicas = sortedTrees.take(initial.length / 100 * 19)
+def fittest(treesAndFitness: IndexedSeq[(Exp, Float)]): (Exp, Float) = {
+  treesAndFitness.minBy { case (_, fitness) => fitness }
+}
+```
+
+The `Main` application contains key parameters including:
+
+- `count` The number of trees to generate.
+- `maxDepth` The maximum depth of the initial tree population.
+- `terminalSet` The terminals to use when constructing trees.
+- `functionSet` The functions to use when constructing trees.
+- `cases` The cases to use when evaluating the fitness of trees.
+- `criteria` The criteria used to decide when to stop evolving trees.
+
+###### Main.scala
+```scala
+object Main extends App with Logging {
+  import GP._
+  val count = 100000
+  val maxDepth = 5
+  val terminalSet = IndexedSeq(Var('x)) ++ 1f.to(5f, 1f).map(Con)
+  val functionSet = IndexedSeq(Add, Sub, Div, Mul)
+  def pow(a: Float, b: Float): Float = Math.pow(a, b).toFloat
+  val cases = (-1f).to(1f, 0.05f).map(x => (Map('x -> x), pow(x, 2) - x - 2)).toMap
+  def criteria(fitness: Float): Boolean = fitness < 0.01f
+  val fitTree = run(functionSet, terminalSet, cases, fitness, criteria, populationSize = 1000)
+  log.debug(s"Fittest tree: ${fitTree}")
+  log.debug("expected\t\tactual")
+  cases.foreach { case (symbols, expected) =>
+    log.debug(s"${expected}\t${Exp.eval(fitTree, symbols)}")
+  }
+}
 ```
 
 

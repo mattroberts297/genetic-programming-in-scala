@@ -1,13 +1,10 @@
 
-import scala.List
 import scala.annotation.tailrec
 import scala.collection.immutable._
-import scala.collection.mutable
-
-import org.slf4s.Logging
 import scala.util.Random
 
 import model._
+import org.slf4s.Logging
 
 case class InitParams(
   count: Int,
@@ -17,12 +14,11 @@ case class InitParams(
 
 object Main extends App with Logging {
   import GP._
-  import FloatMath._
   val count = 100000
   val maxDepth = 5
   val terminalSet = IndexedSeq(Var('x)) ++ 1f.to(5f, 1f).map(Con)
   val functionSet = IndexedSeq(Add, Sub, Div, Mul)
-  val initParams = InitParams(count, maxDepth, functionSet, terminalSet)
+  def pow(a: Float, b: Float): Float = Math.pow(a, b).toFloat
   val cases = (-1f).to(1f, 0.05f).map(x => (Map('x -> x), pow(x, 2) - x - 2)).toMap
 //  val cases = (-3f).to(3f, 0.05f).map(x => (Map('x -> x), pow(x,3) / 4 + 3 * pow(x, 2) / 4 - 3 * x / 2 - 2)).toMap
   def criteria(fitness: Float): Boolean = fitness < 0.01f
@@ -32,10 +28,6 @@ object Main extends App with Logging {
   cases.foreach { case (symbols, expected) =>
     log.debug(s"${expected}\t${Exp.eval(fitTree, symbols)}")
   }
-}
-
-object FloatMath {
-  def pow(a: Float, b: Float): Float = Math.pow(a, b).toFloat
 }
 
 object GP extends Logging {

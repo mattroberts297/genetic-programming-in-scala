@@ -10,12 +10,17 @@ val initial = rampHalfHalf(count, maxDepth, functionSet, terminalSet).toVector
 def pow(a: Float, b: Float): Float = Math.pow(a, b).toFloat
 val cases = (-1f).to(1f, 0.05f).map(x => (Map('x -> x), pow(x, 2) - x - 2)).toMap
 
-val sortedTrees = initial.map { tree =>
-  tree -> fitness(cases)(tree)
-} sortBy { case (_, fitness) =>
-  fitness
-} map { case (tree, _) =>
-  tree
-}
+val treesAndFitness = initial.map { tree => tree -> fitness(cases)(tree) }
 
-val replicas = sortedTrees.take(initial.length / 100 * 19)
+val mutants = GP.mutants(functionSet, terminalSet, maxDepth)_
+
+val next = crossovers(
+  treesAndFitness,
+  0.8f,
+  mutants(
+    initial,
+    0.01f,
+    replicas(
+      treesAndFitness,
+      0.19f,
+      Set.empty))).toIndexedSeq
