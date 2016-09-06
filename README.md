@@ -2,9 +2,6 @@
 
 TODO:
 
-- Remove imports for files, just leave for snippets.
-- Show how to use population functions with initial population.
-- Show the loop.
 - Provide example outputs (with changing graphs!?).
 - Wrap up
 
@@ -613,5 +610,7 @@ val next = crossovers(
       0.19f,
       Set.empty))).toIndexedSeq
 ```
+
+### Example runs
 
 

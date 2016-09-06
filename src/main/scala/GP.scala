@@ -19,11 +19,18 @@ object GP extends Logging {
     val initial = rampHalfHalf(populationSize, maxDepth, functionSet, terminalSet).toVector
 
     @tailrec
-    def loop(run: Int, current: IndexedSeq[Exp]): Exp = {
+    def loop(run: Int, current: IndexedSeq[Exp], lastMinFitness: Float = Float.MaxValue): Exp = {
       val treesAndFitness = current.map { tree => tree -> fitness(cases)(tree) }
       val (topTree, minFitness) = fittest(treesAndFitness)
       val mutants = GP.mutants(functionSet, terminalSet, maxDepth)_
       log.debug(s"run=${run}, minFitness=${minFitness}")
+      if (minFitness < lastMinFitness) {
+        println(s"Fitter tree")
+        println("expected,actual")
+        cases.foreach { case (symbols, expected) =>
+          println(s"${expected},${Exp.eval(topTree, symbols)}")
+        }
+      }
       if (criteria(minFitness)) {
         topTree
       } else {
@@ -38,7 +45,7 @@ object GP extends Logging {
               replicas(
                 treesAndFitness,
                 0.19f,
-                Set.empty))).toIndexedSeq)
+                Set.empty))).toIndexedSeq, minFitness)
       }
     }
     loop(1, initial)
