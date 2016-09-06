@@ -173,15 +173,16 @@ def random[T](elements: IndexedSeq[T]): T = {
 }
 ```
 
-The `full` function resides in an object named `GP`. I omit the following "boiler plate" when discussing methods in that object:
+> The `full` function resides in an object named `GP`. I omit the following "boiler plate" when discussing methods in that object:
 
-```scala
+> ###### GP.scala
+
+>```scala
 import scala.annotation.tailrec
 import scala.collection.immutable._
 import scala.util.Random
 import org.slf4s.Logging
 import model._
-
 object GP with Logging {
   // Functions go here.
 }
@@ -195,8 +196,6 @@ The `full` method is simple and definitely works, but all the trees for a given 
 
 ###### GP.scala
 ```scala
-import scala.collection.immutable._
-
 def grow(
     depth: Int,
     functions: IndexedSeq[(Exp, Exp) => Exp],
@@ -227,8 +226,6 @@ These two methods can be composed together to create the method `rampHalfHalf`. 
 
 ###### GP.scala
 ```scala
-import scala.collection.immutable._
-
 def rampHalfHalf(
     count: Int,
     maxDepth: Int,
@@ -567,6 +564,10 @@ The `Main` application contains key parameters including:
 
 ###### Main.scala
 ```scala
+import scala.collection.immutable._
+import org.slf4s.Logging
+import model._
+
 object Main extends App with Logging {
   import GP._
   val count = 100000
@@ -583,6 +584,34 @@ object Main extends App with Logging {
     log.debug(s"${expected}\t${Exp.eval(fitTree, symbols)}")
   }
 }
+```
+
+If you're interested to see what a single evolution looks like then you can do that from a worksheet:
+
+```scala
+import scala.collection.immutable._
+import model._
+import GP._
+
+val count = 10
+val maxDepth = 5
+val terminalSet = IndexedSeq(Var('x)) ++ 1f.to(5f, 1f).map(Con)
+val functionSet = IndexedSeq(Add, Sub, Div, Mul)
+val initial = rampHalfHalf(count, maxDepth, functionSet, terminalSet).toVector
+def pow(a: Float, b: Float): Float = Math.pow(a, b).toFloat
+val cases = (-1f).to(1f, 0.05f).map(x => (Map('x -> x), pow(x, 2) - x - 2)).toMap
+val treesAndFitness = initial.map { tree => tree -> fitness(cases)(tree) }
+val mutants = GP.mutants(functionSet, terminalSet, maxDepth)_
+val next = crossovers(
+  treesAndFitness,
+  0.8f,
+  mutants(
+    initial,
+    0.01f,
+    replicas(
+      treesAndFitness,
+      0.19f,
+      Set.empty))).toIndexedSeq
 ```
 
 
