@@ -1,5 +1,13 @@
 ## Genetic programming in scala
 
+TODO:
+
+- Remove imports for files, just leave for snippets.
+- Show how to use population functions with initial population.
+- Show the loop.
+- Provide example outputs (with changing graphs!?).
+- Wrap up
+
 ### Introduction
 
 I hope that one day software engineers will obsolete ourselves. That is, we will write an application capable of writing all other applications for us. Genetic programming (GP) is about just that: creating programs that solve problems based on expected outputs for given inputs. As a colleague of mine put it, you write the unit tests and the computer does the rest.
@@ -144,7 +152,7 @@ val functionSet = IndexedSeq(Add, Sub, Div, Mul)
 
 With these sets it's possible to generate an AST of some arbitrary depth `depth`. The simplest way to do this is to create a `full` tree. The algorithm is reasonably simple. If the depth has been reached then return a random terminal from the terminal set. Otherwise return a random function from the function set and use the result of the next recursion as its arguments. Here is a method that does that:
 
-###### model/GP.scala
+###### GP.scala
 ```scala
 import scala.collection.immutable._
 
@@ -173,7 +181,7 @@ Here are some example ASTs with depths `1`, `2` and `3` generated with the `full
 
 The `full` method is simple and definitely works, but all the trees for a given depth have the exactly same number of leafs. This leads to a surprisingly uniform population. The `grow` method resolves this issue by randomly stopping the recursion:
 
-###### model/GP.scala
+###### GP.scala
 ```scala
 import scala.collection.immutable._
 
@@ -205,7 +213,7 @@ Here are three example ASTs all of depth `3` generated with `grow` method:
 
 These two methods can be composed together to create the method `rampHalfHalf`. The idea behind this is to use `grow` for one half of the population and `full` for the other. Further, the method starts at `depth` 1 and ramps up to some `maxDepth` (as opposed to all trees being the same `depth`):
 
-###### model/GP.scala
+###### GP.scala
 ```scala
 import scala.collection.immutable._
 
@@ -262,7 +270,7 @@ val cases = (-1f).to(1f, 0.05f).map(x => (Map('x -> x), pow(x, 2) - x - 2)).toMa
 
 The type of `cases` is `Map[ST, Float]`. In other words, it maps symbol tables (inputs) to expected results. Now we need to use these cases to evaluate the fitness of a given tree. To do this, first we have to evaluate each case against the tree and store the absolute difference between the actual and expected results. Then we have to sum these differences to give one final figure for all cases:
 
-###### model/GP.scala
+###### GP.scala
 ```scala
 def fitness(cases: Map[ST, Float])(tree: Exp): Float = {
   cases map { case (symbols, expected) =>
@@ -302,7 +310,7 @@ The next step is to evolve the initial population into a new population. There a
 
 Mutation will introduce a degree of randomness and brute force into the overall approach. Most GP enthusiasts would recommend keeping it's use to a minimum (and I agree). That said, it is important because it can help bump a GP run out of a local optimum. The idea is to take a tree, pick a random subtree within it's branches and replace it with another tree grown from the function and terminal sets:
 
-###### model/GP.scala
+###### GP.scala
 ```scala
   def mutate(
       functionSet: IndexedSeq[(Exp, Exp) => Exp],
@@ -317,7 +325,7 @@ Mutation will introduce a degree of randomness and brute force into the overall 
 
 Note the use of two new functions `random` and `replace` and one old function `grow`. The first function invokes `collectAll` to convert the `Exp` into an `IndexedSeq[Exp]` containing the root of the tree and all its subtrees using the generic `collect` function and a, not so partial, anonymous function. The result is then passsed to the previously defined `random` function that takes an `IndexedSeq[T]`: 
 
-###### model/GP.scala
+###### GP.scala
 ```scala  
   def random(tree: Exp): Exp = {
     random(collectAll(tree))
@@ -342,7 +350,7 @@ Note the use of two new functions `random` and `replace` and one old function `g
 
 The second function is responsible for replacing some node `target` in the original expression `exp` with a `replacement`. The method uses reference equality instead of value equality because there may be many subtrees with value equality. This works because the `mutate` method picks an element from the original tree. The method performs a recursive descent through the tree. The first `case` in the `match` statement checks for reference equality and if it is found then returns the `replacement`. All other cases perform a copy. If the target does not exist then a copy of the original expression is returned:
 
-###### model/GP.scala
+###### GP.scala
 ```scala
   def replace(exp: Exp, target: Exp, replacement: Exp): Exp = {
     def repl(exp: Exp) = replace(exp, target, replacement)
@@ -364,7 +372,7 @@ The second function is responsible for replacing some node `target` in the origi
 
 Crossover is responsible for breeding new trees. It does this by taking two parents (`left` and `right`) and selecting random subtree from each (`replacement` and `target`). The random selection is actually quite heavily biased in favour of operators to avoid pruning trees to aggressively. A copy of the `right` tree is made with the `target` replaced with the `replacement`:
 
-###### model/GP.scala
+###### GP.scala
 ```scala
   def crossover(left: Exp, right: Exp): Exp = {
     val replacement = biasedRandom(left)
@@ -401,7 +409,7 @@ Crossover is responsible for breeding new trees. It does this by taking two pare
 
 Tournament is the process by which two parents are selected for crossover. The method takes two trees and their respective fitness values and returns the fittest tree:
 
-###### model/GP.scala
+###### GP.scala
 ```scala
   def tournament(a: (Exp, Float), b: (Exp, Float)): Exp = {
     val (aExp, aFit) = a
@@ -412,12 +420,81 @@ Tournament is the process by which two parents are selected for crossover. The m
 
 #### Replication
 
-The last algorithm is very simple. Given a population, take a percentage of the fittest individuals and carry them across to the next population. Given that we're now looking at the population as a whole it seems like a sensible point to put everything together.
+The last algorithm is very simple. Given a population, take a percentage of the fittest individuals and carry them across to the next population. The method to implement replication will have to take a population of trees as it's input. Note that up until now each algorithm has taken one or two trees as inputs. Here is the `replicas` function:
+
+###### GP.scala
+```scala
+  def replicas(
+      treesAndFitness: IndexedSeq[(Exp, Float)],
+      percent: Float = 0.19f,
+      acc: Set[Exp] = Set.empty[Exp]): Set[Exp] = {
+    val length = acc.size + (treesAndFitness.length.toFloat * percent).toInt
+    val sortedTrees = treesAndFitness.
+      sortBy { case (_, fitness) => fitness }.
+      map { case (exp, _) => exp }
+    @tailrec
+    def loop(acc: Set[Exp], remaining: IndexedSeq[Exp]): Set[Exp] = {
+      if (acc.size == length) {
+        acc
+      } else {
+        loop(acc + remaining.head, remaining.tail)
+      }
+    }
+    loop(acc, sortedTrees)
+  }
+```
+
+Before putting everything together, let's create methods that wrap mutate and crossover, but take populations of trees as their arguments. Starting with `crossovers`:
+
+###### GP.scala
+```scala
+  def crossovers(
+      treesAndFitness: IndexedSeq[(Exp, Float)],
+      percent: Float = 0.8f,
+      acc: Set[Exp]= Set.empty[Exp]): Set[Exp] = {
+    val length = acc.size + (treesAndFitness.length.toFloat * percent).toInt
+    @tailrec
+    def loop(acc: Set[Exp]): Set[Exp] = {
+      if (acc.size == length) {
+        acc
+      } else {
+        loop(acc + crossover(
+          tournament(random(treesAndFitness), random(treesAndFitness)),
+          tournament(random(treesAndFitness), random(treesAndFitness))))
+      }
+    }
+    loop(acc)
+  }
+```
+
+And finally the mutants:
+
+###### GP.scala
+```scala
+  def mutants(
+      functionSet: IndexedSeq[(Exp, Exp) => Exp],
+      terminalSet: IndexedSeq[Exp],
+      maxDepth: Int)(
+      trees: IndexedSeq[Exp],
+      percent: Float = 0.01f,
+      acc: Set[Exp]= Set.empty[Exp]): Set[Exp] = {
+    val length = acc.size + (trees.length.toFloat * percent).toInt
+    def mutate = GP.mutate(functionSet, terminalSet, maxDepth)_
+    @tailrec
+    def loop(acc: Set[Exp]): Set[Exp] = {
+      if (acc.size == length) {
+        acc
+      } else {
+        loop(acc + mutate(random(trees)))
+      }
+    }
+    loop(acc)
+  }
+```
+
+One thing to note is that each method takes an accumulator. This avoids the situation whereby the population is compromised of trees that are exactly the same.
 
 
-
-
-Take the initial population, calculate the fitness, order the population and take a percentage (let's say 19%) of the fittest trees and copy them across to the next population:
 
 ```scala
 import scala.collection.immutable._

@@ -52,52 +52,89 @@ object GP extends Logging {
 
     @tailrec
     def loop(run: Int, current: IndexedSeq[Exp]): Exp = {
-      val treesAndFitness = current.map { tree =>
-        tree -> fitness(cases)(tree)
-      }
-      val sortedTreesAndFitness = treesAndFitness.sortBy { case (_, fitness) =>
-        fitness
-      }
-      val sortedTrees = sortedTreesAndFitness.map { case (tree, _) => tree }
-      val (topTree, minFitness) = sortedTreesAndFitness.head
-      if (criteria(minFitness) || run == maxRuns) {
+      val treesAndFitness = current.map { tree => tree -> fitness(cases)(tree) }
+      val (topTree, minFitness) = fittest(treesAndFitness)
+      val mutants = GP.mutants(functionSet, terminalSet, maxDepth)_
+      log.debug(s"run=${run}, minFitness=${minFitness}")
+      if (criteria(minFitness)) {
         topTree
       } else {
-        val replicas = sortedTrees.take(current.length / 100 * 19)
-//        replicas.foreach(exp => set += exp)
-        val mutants = 1.to(current.length / 100).map { _ =>
-          random(sortedTrees)
-        }.map(e => mutate(functionSet, terminalSet, maxDepth)(e))
-//        mutants.foreach(exp => set += exp)
-        // todo make immutable
-        val set = mutable.Set.empty[Exp]
-        while (set.size < current.length / 100 * 80) {
-          set += crossover(
-            tournament(random(treesAndFitness), random(treesAndFitness)),
-            tournament(random(treesAndFitness), random(treesAndFitness)))
-        }
-        val replicasAndCrossovers = set.toVector ++ replicas ++ mutants
-        log.debug(s"run=${run}, minFitness=${minFitness}")
-        loop(run + 1, replicasAndCrossovers)
+        loop(
+          run + 1,
+          crossovers(
+            treesAndFitness,
+            0.8f,
+            mutants(
+              current,
+              0.01f,
+              replicas(
+                treesAndFitness,
+                0.19f,
+                Set.empty))).toIndexedSeq)
       }
     }
-
     loop(1, initial)
   }
 
-  def mutateAll(
+  def fittest(treesAndFitness: IndexedSeq[(Exp, Float)]): (Exp, Float) = {
+    treesAndFitness.minBy { case (_, fitness) => fitness }
+  }
+
+  def replicas(
+      treesAndFitness: IndexedSeq[(Exp, Float)],
+      percent: Float = 0.19f,
+      acc: Set[Exp] = Set.empty[Exp]): Set[Exp] = {
+    val length = acc.size + (treesAndFitness.length.toFloat * percent).toInt
+    val sortedTrees = treesAndFitness.
+      sortBy { case (_, fitness) => fitness }.
+      map { case (exp, _) => exp }
+    @tailrec
+    def loop(acc: Set[Exp], remaining: IndexedSeq[Exp]): Set[Exp] = {
+      if (acc.size == length) {
+        acc
+      } else {
+        loop(acc + remaining.head, remaining.tail)
+      }
+    }
+    loop(acc, sortedTrees)
+  }
+
+  def mutants(
       functionSet: IndexedSeq[(Exp, Exp) => Exp],
       terminalSet: IndexedSeq[Exp],
       maxDepth: Int)(
       trees: IndexedSeq[Exp],
-      percent: Float = 0.1f,
-      seen: Set[Exp]= Set.empty[Exp]): IndexedSeq[Exp] = {
-    def mutateOne = mutate(functionSet, terminalSet, maxDepth)_
-    def loop(acc: Set[Exp]): IndexedSeq[Exp] = {
-
-      ???
+      percent: Float = 0.01f,
+      acc: Set[Exp]= Set.empty[Exp]): Set[Exp] = {
+    val length = acc.size + (trees.length.toFloat * percent).toInt
+    def mutate = GP.mutate(functionSet, terminalSet, maxDepth)_
+    @tailrec
+    def loop(acc: Set[Exp]): Set[Exp] = {
+      if (acc.size == length) {
+        acc
+      } else {
+        loop(acc + mutate(random(trees)))
+      }
     }
-    ???
+    loop(acc)
+  }
+
+  def crossovers(
+      treesAndFitness: IndexedSeq[(Exp, Float)],
+      percent: Float = 0.8f,
+      acc: Set[Exp]= Set.empty[Exp]): Set[Exp] = {
+    val length = acc.size + (treesAndFitness.length.toFloat * percent).toInt
+    @tailrec
+    def loop(acc: Set[Exp]): Set[Exp] = {
+      if (acc.size == length) {
+        acc
+      } else {
+        loop(acc + crossover(
+          tournament(random(treesAndFitness), random(treesAndFitness)),
+          tournament(random(treesAndFitness), random(treesAndFitness))))
+      }
+    }
+    loop(acc)
   }
 
   def full(
