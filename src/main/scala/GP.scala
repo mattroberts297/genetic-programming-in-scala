@@ -6,6 +6,8 @@ import scala.util.Random
 import model._
 import org.slf4s.Logging
 
+
+// todo consider pruning large trees
 object GP extends Logging {
   def run(
     functionSet: IndexedSeq[(Exp, Exp) => Exp],

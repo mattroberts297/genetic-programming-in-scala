@@ -547,7 +547,7 @@ def fittest(treesAndFitness: IndexedSeq[(Exp, Float)]): (Exp, Float) = {
 
 The `Main` application contains key parameters including:
 
-- `count` The number of trees to generate.
+- `populationSize` The number of trees to generate.
 - `maxDepth` The maximum depth of the initial tree population.
 - `terminalSet` The terminals to use when constructing trees.
 - `functionSet` The functions to use when constructing trees.
@@ -562,7 +562,6 @@ import model._
 
 object Main extends App with Logging {
   import GP._
-  val count = 100000
   val maxDepth = 5
   val terminalSet = IndexedSeq(Var('x)) ++ 1f.to(5f, 1f).map(Con)
   val functionSet = IndexedSeq(Add, Sub, Div, Mul)
