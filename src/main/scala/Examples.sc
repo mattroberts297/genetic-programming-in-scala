@@ -21,3 +21,6 @@ val next = crossovers(
       treesAndFitness,
       0.19f,
       Set.empty))).toIndexedSeq
+
+val x = -3
+pow(x, 2) - x - 2

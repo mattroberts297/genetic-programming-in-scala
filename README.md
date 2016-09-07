@@ -1,17 +1,12 @@
 ## Genetic programming in scala
 
-TODO:
-
-- Provide example outputs (with changing graphs!?).
-- Wrap up
-
 ### Introduction
 
-I hope that one day software engineers will obsolete ourselves. That is, we will write an application capable of writing all other applications for us. Genetic programming (GP) is about just that: creating programs that solve problems based on expected outputs for given inputs. As a colleague of mine put it, you write the unit tests and the computer does the rest.
+I hope that one day software engineers will obsolete ourselves. That is, we will write an application capable of writing all other applications for us. Genetic programming (GP) is about just that: creating programs that solve problems based on expected outputs for given inputs. As a colleague of mine put it, you write the unit tests and the computer does the rest. Of course, both my colleague and I know we're not quite there yet!
 
 Most, if not all, of the algorithms implemented here are based on the excellent descriptions in _A Field Guide to Genetic Programming_. I've concentrated on readability and correctness as opposed to speed of execution or even reliability, so please excuse the lacklustre performance and the fact that tail recursion is not used in places. Also note that the algorithms implemented here are, to quote the authors, "the simplest thing that could possibly work".
 
-The snippets (those without file names) below should work in the SBT console of the project (or an IntelliJ worksheet).
+The snippets (those without file names) below should work in the SBT console of the project (or an IntelliJ worksheet). The project is available in my GitHub repository: [mattroberts297/genetic-programming-1](http://github.com/mattroberts297/genetic-programming-1).
 
 ### Representing programs
 
@@ -572,13 +567,13 @@ object Main extends App with Logging {
   val terminalSet = IndexedSeq(Var('x)) ++ 1f.to(5f, 1f).map(Con)
   val functionSet = IndexedSeq(Add, Sub, Div, Mul)
   def pow(a: Float, b: Float): Float = Math.pow(a, b).toFloat
-  val cases = (-1f).to(1f, 0.05f).map(x => (Map('x -> x), pow(x, 2) - x - 2)).toMap
+  val cases = (-3f).to(3f, 0.5f).map(x => (Map('x -> x), pow(x, 2) - x - 2)).toMap
   def criteria(fitness: Float): Boolean = fitness < 0.01f
   val fitTree = run(functionSet, terminalSet, cases, fitness, criteria, populationSize = 1000)
-  log.debug(s"Fittest tree: ${fitTree}")
-  log.debug("expected\t\tactual")
+  log.info(s"Fittest tree: ${fitTree}")
+  log.info("expected\t\tactual")
   cases.foreach { case (symbols, expected) =>
-    log.debug(s"${expected}\t${Exp.eval(fitTree, symbols)}")
+    log.info(s"${expected}\t${Exp.eval(fitTree, symbols)}")
   }
 }
 ```
@@ -611,6 +606,22 @@ val next = crossovers(
       Set.empty))).toIndexedSeq
 ```
 
-### Example runs
+### Convergence
+
+As the number of runs increase the aim is to converge on a solution. If we chart the fittest tree of each iteration then we can see this happening run by run:
+
+![Second degree polynomial run 1](SecondDegreePolynomialRun1.png "Second degree polynomial run 1")
 
 
+![Second degree polynomial run 2](SecondDegreePolynomialRun2.png "Second degree polynomial run 2")
+
+
+![Second degree polynomial run 3](SecondDegreePolynomialRun3.png "Second degree polynomial run 3")
+
+
+![Second degree polynomial run 4](SecondDegreePolynomialRun4.png "Second degree polynomial run 4")
+
+
+![Second degree polynomial run 5](SecondDegreePolynomialRun5.png "Second degree polynomial run 5")
+
+Note that the actual line is obscured by the expected line i.e. it is a perfect match. Don't forget the full source is available on GitHub at [mattroberts297/genetic-programming-1](http://github.com/mattroberts297/genetic-programming-1). If there is interest then I'll do a follow up post showing how to run this on a Spark cluster.

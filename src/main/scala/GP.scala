@@ -26,9 +26,13 @@ object GP extends Logging {
       log.debug(s"run=${run}, minFitness=${minFitness}")
       if (minFitness < lastMinFitness) {
         println(s"Fitter tree")
-        println("expected,actual")
-        cases.foreach { case (symbols, expected) =>
-          println(s"${expected},${Exp.eval(topTree, symbols)}")
+        println("x,expected,actual")
+        cases.toVector.map { case (symbols, expected) =>
+          (symbols.head._2, expected, Exp.eval(topTree, symbols))
+        } sortBy { case (x, _, _) =>
+          x
+        } foreach { case (x, e, a) =>
+          println(s"$x,$e,$a")
         }
       }
       if (criteria(minFitness)) {
