@@ -22,9 +22,10 @@ object GP extends Logging {
 
     @tailrec
     def loop(run: Int, current: IndexedSeq[Exp], lastMinFitness: Float = Float.MaxValue): Exp = {
-      val treesAndFitness = current.map { tree => tree -> fitness(cases)(tree) }
+      val treesAndFitness = current.map {  tree => tree -> fitness(cases)(tree) }
       val (topTree, minFitness) = fittest(treesAndFitness)
       val mutants = GP.mutants(functionSet, terminalSet, maxDepth)_
+      val prune = GP.prune(terminalSet, maxDepth)_
       log.debug(s"run=${run}, minFitness=${minFitness}")
       if (minFitness < lastMinFitness) {
         println(s"Fitter tree")
@@ -51,10 +52,28 @@ object GP extends Logging {
               replicas(
                 treesAndFitness,
                 0.19f,
-                Set.empty))).toIndexedSeq, minFitness)
+                Set.empty))).toIndexedSeq.map(prune), minFitness)
       }
     }
     loop(1, initial)
+  }
+
+  def prune(
+      terminalSet: IndexedSeq[Exp],
+      maxDepth: Int)(
+      tree: Exp): Exp = {
+    def loop(subtree: Exp, depth: Int): Exp = {
+      subtree match {
+        case op: BinOp if (depth >= maxDepth) => random(terminalSet)
+        case Con(value) => Con(value)
+        case Var(symbol) => Var(symbol)
+        case Add(lhs, rhs) => Add(loop(lhs, depth + 1), loop(rhs, depth + 1))
+        case Sub(lhs, rhs) => Sub(loop(lhs, depth + 1), loop(rhs, depth + 1))
+        case Mul(lhs, rhs) => Mul(loop(lhs, depth + 1), loop(rhs, depth + 1))
+        case Div(lhs, rhs) => Div(loop(lhs, depth + 1), loop(rhs, depth + 1))
+      }
+    }
+    loop(tree, 0)
   }
 
   def fittest(treesAndFitness: IndexedSeq[(Exp, Float)]): (Exp, Float) = {

@@ -510,7 +510,7 @@ def run(
     fitness: Map[ST, Float] => Exp => Float,
     criteria: Float => Boolean,
     maxRuns: Int = 1000,
-    maxDepth: Int = 5,
+    maxDepth: Int = 6,
     populationSize: Int = 100000): Exp = {
   val initial = rampHalfHalf(populationSize, maxDepth, functionSet, terminalSet).toVector
 
@@ -562,7 +562,7 @@ import model._
 
 object Main extends App with Logging {
   import GP._
-  val maxDepth = 5
+  val maxDepth = 6
   val terminalSet = IndexedSeq(Var('x)) ++ 1f.to(5f, 1f).map(Con)
   val functionSet = IndexedSeq(Add, Sub, Div, Mul)
   def pow(a: Float, b: Float): Float = Math.pow(a, b).toFloat
@@ -577,7 +577,7 @@ object Main extends App with Logging {
 }
 ```
 
-If you're interested to see what a single evolution looks like then you can do that from a worksheet:
+If you're interested to see what a single evolution looks like then you can do that from the console or a worksheet:
 
 ```scala
 import scala.collection.immutable._
@@ -585,7 +585,7 @@ import model._
 import GP._
 
 val count = 10
-val maxDepth = 5
+val maxDepth = 6
 val terminalSet = IndexedSeq(Var('x)) ++ 1f.to(5f, 1f).map(Con)
 val functionSet = IndexedSeq(Add, Sub, Div, Mul)
 val initial = rampHalfHalf(count, maxDepth, functionSet, terminalSet).toVector
@@ -607,7 +607,9 @@ val next = crossovers(
 
 ### Convergence
 
-As the number of runs increase the aim is to converge on a solution. If we chart the fittest tree of each iteration then we can see this happening run by run:
+#### Second degree polynomial
+
+The `Main` object and worksheet above contain `cases` for the second degree polynomial introduced way back at the beginning of this post. As the number of runs increase the aim is to converge on the actual solution. If we chart the fittest tree of each iteration then we can see this happening run by run:
 
 ![Second degree polynomial run 1](SecondDegreePolynomialRun1.png "Second degree polynomial run 1")
 
@@ -623,4 +625,53 @@ As the number of runs increase the aim is to converge on a solution. If we chart
 
 ![Second degree polynomial run 5](SecondDegreePolynomialRun5.png "Second degree polynomial run 5")
 
-Note that the actual line is obscured by the expected line i.e. it is a perfect match. Don't forget the full source is available on GitHub at [mattroberts297/genetic-programming-1](http://github.com/mattroberts297/genetic-programming-1). If there is interest then I'll do a follow up post showing how to run this on a Spark cluster.
+Note that the actual line is obscured by the expected line i.e. it is a perfect match. Also, I labelled the charts as runs 1 through 5, but they are actually just runs where there was an improvement i.e. more runs were needed. That said, convergence seemed to happen pretty quickly all things considered i.e. sometimes sub second and no more than 2 seconds or 20 runs.
+
+#### Third degree polynomial
+
+I suggested earlier that a third degree polynomial would be more difficult to converge on. And it was. In fact, what I found is that I would be lucky to converge at all. Sure, it'd be close. But as time passed and the number of runs increased beyond a 100 then things started to slow down and the rate of fitness improvement began to stagnate. The give away for me was the runs slowing down. I took an educated guess and assumed the trees were getting too big (I could have proven this by printing out some trees).
+
+##### Pruning
+
+The solution, as with the other algorithms, is reasonably straight forward: prune the trees after each evolution. I'm sure this is probably in the book, but I just skimmed over it or forgot it. Here is the method I used:
+
+```scala
+def prune(
+      terminalSet: IndexedSeq[Exp],
+      maxDepth: Int)(
+      tree: Exp): Exp = {
+    def loop(subtree: Exp, depth: Int): Exp = {
+      subtree match {
+        case op: BinOp if (depth >= maxDepth) => random(terminalSet)
+        case Con(value) => Con(value)
+        case Var(symbol) => Var(symbol)
+        case Add(lhs, rhs) => Add(loop(lhs, depth + 1), loop(rhs, depth + 1))
+        case Sub(lhs, rhs) => Sub(loop(lhs, depth + 1), loop(rhs, depth + 1))
+        case Mul(lhs, rhs) => Mul(loop(lhs, depth + 1), loop(rhs, depth + 1))
+        case Div(lhs, rhs) => Div(loop(lhs, depth + 1), loop(rhs, depth + 1))
+      }
+    }
+    loop(tree, 0)
+  }
+```
+
+And here is how I tacked it onto the end of the loop (note that I was to lazy write a version that operates on a population of trees):
+
+```scala
+loop(
+  run + 1,
+  crossovers(
+    treesAndFitness,
+    0.8f,
+    mutants(
+      current,
+      0.01f,
+      replicas(
+        treesAndFitness,
+        0.19f,
+        Set.empty))).toIndexedSeq.map(prune), minFitness)
+```
+
+Doing this constrains the search space and means that each execution is quick i.e. no slow down over time. With pruning I found the number of runs varied from 50-200, but that the time to execute floated around the 2 second mark on average.
+
+Don't forget the full source is available on GitHub at [mattroberts297/genetic-programming-1](http://github.com/mattroberts297/genetic-programming-1). If there is interest then I'll do a follow up post showing how to run this on a Spark cluster.
