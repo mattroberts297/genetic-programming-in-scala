@@ -629,11 +629,17 @@ Note that the actual line is obscured by the expected line i.e. it is a perfect 
 
 #### Third degree polynomial
 
-I suggested earlier that a third degree polynomial would be more difficult to converge on. And it was. In fact, what I found is that I would be lucky to converge at all. Sure, it'd be close. But as time passed and the number of runs increased beyond a 100 then things started to slow down and the rate of fitness improvement began to stagnate. The give away for me was the runs slowing down. I took an educated guess and assumed the trees were getting too big (I could have proven this by printing out some trees).
+To try and generate a third degree polynomial I just had to change my `cases`:
+
+```scala
+val cases = (-3f).to(3f, 0.5f).map(x => (Map('x -> x), pow(x,3) / 4 + 3 * pow(x, 2) / 4 - 3 * x / 2 - 2)).toMap
+```
+
+I suggested earlier that a third degree polynomial would be more difficult to generate automatically. In fact, what I found is that I would be lucky if the program converged at all. As time passed and the number of runs increased beyond a 100 then things started to slow down. Further, the fitness decrements became smaller and more infrequent. The give away for me was the runs slowing down. I took an educated guess and assumed the trees were getting too big and then the program became stuck in a local, but large optima (I could have proven this by printing out some trees).
 
 ##### Pruning
 
-The solution, as with the other algorithms, is reasonably straight forward: prune the trees after each evolution. I'm sure this is probably in the book, but I just skimmed over it or forgot it. Here is the method I used:
+The solution, as with the other algorithms, is reasonably straight forward: prune the trees after each evolution. I'm sure this is probably in the book, but I either skimmed over it or forgot it. Here is the method I used:
 
 ```scala
 def prune(
@@ -655,7 +661,7 @@ def prune(
   }
 ```
 
-And here is how I tacked it onto the end of the loop (note that I was to lazy write a version that operates on a population of trees):
+And here is how I tacked it onto the end of the loop (note that I was too lazy to write a version that operates on a population of trees):
 
 ```scala
 loop(
@@ -674,4 +680,6 @@ loop(
 
 Doing this constrains the search space and means that each execution is quick i.e. no slow down over time. With pruning I found the number of runs varied from 50-200, but that the time to execute floated around the 2 second mark on average.
 
-Don't forget the full source is available on GitHub at [mattroberts297/genetic-programming-1](http://github.com/mattroberts297/genetic-programming-1). If there is interest then I'll do a follow up post showing how to run this on a Spark cluster.
+### Final thoughts
+
+Genetic programming seems like a brilliant way to search a constrained space for an optimum or approximate solution to some problem. Don't forget the full source is available on GitHub at [mattroberts297/genetic-programming-1](http://github.com/mattroberts297/genetic-programming-1). If there is interest then I'll do a follow up post showing how to run this on a Spark cluster.

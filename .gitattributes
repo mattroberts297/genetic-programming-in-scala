@@ -20,3 +20,12 @@ SecondDegreePolynomialRun2.png filter=lfs diff=lfs merge=lfs -text
 SecondDegreePolynomialRun3.png filter=lfs diff=lfs merge=lfs -text
 SecondDegreePolynomialRun4.png filter=lfs diff=lfs merge=lfs -text
 SecondDegreePolynomialRun5.png filter=lfs diff=lfs merge=lfs -text
+ThirdDegreePolynomialRun1.pdf filter=lfs diff=lfs merge=lfs -text
+ThirdDegreePolynomialRun10.pdf filter=lfs diff=lfs merge=lfs -text
+ThirdDegreePolynomialRun2.pdf filter=lfs diff=lfs merge=lfs -text
+ThirdDegreePolynomialRun3.pdf filter=lfs diff=lfs merge=lfs -text
+ThirdDegreePolynomialRun5.pdf filter=lfs diff=lfs merge=lfs -text
+ThirdDegreePolynomialRun7.pdf filter=lfs diff=lfs merge=lfs -text
+ThirdDegreePolynomialRun9.pdf filter=lfs diff=lfs merge=lfs -text
+ThirdDegreePolynomialRuns.numbers filter=lfs diff=lfs merge=lfs -text
+ThirdDegreePolynomialRun2.png filter=lfs diff=lfs merge=lfs -text
