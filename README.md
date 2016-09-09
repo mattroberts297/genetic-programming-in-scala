@@ -678,7 +678,17 @@ loop(
         Set.empty))).toIndexedSeq.map(prune), minFitness)
 ```
 
-Doing this constrains the search space and means that each execution is quick i.e. no slow down over time. With pruning I found the number of runs varied from 50-200, but that the time to execute floated around the 2 second mark on average.
+Doing this constrains the search space and means that each execution is quick i.e. no slow down over time. With pruning I found the number of runs varied from 50-200, but that the time to execute floated around the 2 second mark on average. Here are some more charts:
+
+![Third degree polynomial run 1](ThirdDegreePolynomialRun1.png "Third degree polynomial run 1")
+
+![Third degree polynomial run 3](ThirdDegreePolynomialRun3.png "Third degree polynomial run 3")
+
+![Third degree polynomial run 5](ThirdDegreePolynomialRun5.png "Third degree polynomial run 5")
+
+![Third degree polynomial run 8](ThirdDegreePolynomialRun8.png "Third degree polynomial run 8")
+
+![Third degree polynomial run 10](ThirdDegreePolynomialRun10.png "Third degree polynomial run 10")
 
 ### Final thoughts
 
