@@ -102,7 +102,7 @@ Exp.eval(exp, Map('x -> 3)) // res0: Float = 4
 
 This plots shows the result of the expression for values of `x` between `-3` and `3`:
 
-![Second degree polynomial](SecondDegreePolynomial.png "Second degree polynomial")
+![Second degree polynomial](https://assets.mattroberts.io/img/SecondDegreePolynomial.png "Second degree polynomial")
 
 ##### Third degree polynomial
 
@@ -127,7 +127,7 @@ Exp.eval(exp, Map('x -> 2)) // res3: Float = 0.0
 
 And here is the plot:
 
-![Third degree polynomial](ThirdDegreePolynomial.png "Third degree polynomial")
+![Third degree polynomial](https://assets.mattroberts.io/img/ThirdDegreePolynomial.png "Third degree polynomial")
 
 From looking at both the AST and the chart you can hopefully see that the third degree polynomial will be more difficult to generate automatically than the second degree polynomial. These two expressions, one simpler and one more complex, will make good test cases for our GP solution.
 
@@ -178,11 +178,11 @@ import model._
 object GP with Logging {
   // Functions go here.
 }
-``` 
+```
 
 Here are some example ASTs with depths `1`, `2` and `3` generated with the `full` method:
 
-![Full trees](FullTrees.png "Full trees")
+![Full trees](https://assets.mattroberts.io/img/FullTrees.png "Full trees")
 
 The `full` method is simple and definitely works, but all the trees for a given depth have the exactly same number of leafs. This leads to a surprisingly uniform population. The `grow` method resolves this issue by randomly stopping the recursion:
 
@@ -212,7 +212,7 @@ def random(): Float = Random.nextFloat()
 
 Here are three example ASTs all of depth `3` generated with `grow` method:
 
-![Grow trees](GrowTrees.png "Grow trees")
+![Grow trees](https://assets.mattroberts.io/img/GrowTrees.png "Grow trees")
 
 These two methods can be composed together to create the method `rampHalfHalf`. The idea behind this is to use `grow` for one half of the population and `full` for the other. Further, the method starts at `depth` 1 and ramps up to some `maxDepth` (as opposed to all trees being the same `depth`):
 
@@ -324,7 +324,7 @@ Mutation will introduce a degree of randomness and brute force into the overall 
   }
 ```
 
-Note the use of two new functions `random` and `replace` and one old function `grow`. The first function invokes `collectAll` to convert the `Exp` into an `IndexedSeq[Exp]` containing the root of the tree and all its subtrees using the generic `collect` function and a, not so partial, anonymous function. The result is then passsed to the previously defined `random` function that takes an `IndexedSeq[T]`: 
+Note the use of two new functions `random` and `replace` and one old function `grow`. The first function invokes `collectAll` to convert the `Exp` into an `IndexedSeq[Exp]` containing the root of the tree and all its subtrees using the generic `collect` function and a, not so partial, anonymous function. The result is then passsed to the previously defined `random` function that takes an `IndexedSeq[T]`:
 
 ###### GP.scala
 ```scala  
@@ -335,7 +335,7 @@ Note the use of two new functions `random` and `replace` and one old function `g
   def collectAll(tree: Exp): IndexedSeq[Exp] = {
     collect(tree) { case e => e }
   }
-  
+
   def collect[T](tree: Exp)(pf: PartialFunction[Exp, T]): IndexedSeq[T] = {
     def loop(subtree: Exp, acc: IndexedSeq[T]): IndexedSeq[T] = {
       val result = if (pf.isDefinedAt(subtree)) acc :+ pf(subtree) else acc
@@ -380,11 +380,11 @@ Crossover is responsible for breeding new trees. It does this by taking two pare
     val target = biasedRandom(right)
     replace(right, target, replacement)
   }
-  
+
   def biasedRandom(tree: Exp): Exp = {
     random(biasedCollect(tree))
   }
-  
+
   def biasedCollect(tree: Exp): IndexedSeq[Exp] = {
     val ops = collectOps(tree)
     if (random() > 0.9 || ops.isEmpty) {
@@ -611,19 +611,19 @@ val next = crossovers(
 
 The `Main` object and worksheet above contain `cases` for the second degree polynomial introduced way back at the beginning of this post. As the number of runs increase the aim is to converge on the actual solution. If we chart the fittest tree of each iteration then we can see this happening run by run:
 
-![Second degree polynomial run 1](SecondDegreePolynomialRun1.png "Second degree polynomial run 1")
+![Second degree polynomial run 1](https://assets.mattroberts.io/img/SecondDegreePolynomialRun1.png "Second degree polynomial run 1")
 
 
-![Second degree polynomial run 2](SecondDegreePolynomialRun2.png "Second degree polynomial run 2")
+![Second degree polynomial run 2](https://assets.mattroberts.io/img/SecondDegreePolynomialRun2.png "Second degree polynomial run 2")
 
 
-![Second degree polynomial run 3](SecondDegreePolynomialRun3.png "Second degree polynomial run 3")
+![Second degree polynomial run 3](https://assets.mattroberts.io/img/SecondDegreePolynomialRun3.png "Second degree polynomial run 3")
 
 
-![Second degree polynomial run 4](SecondDegreePolynomialRun4.png "Second degree polynomial run 4")
+![Second degree polynomial run 4](https://assets.mattroberts.io/img/SecondDegreePolynomialRun4.png "Second degree polynomial run 4")
 
 
-![Second degree polynomial run 5](SecondDegreePolynomialRun5.png "Second degree polynomial run 5")
+![Second degree polynomial run 5](https://assets.mattroberts.io/img/SecondDegreePolynomialRun5.png "Second degree polynomial run 5")
 
 Note that the actual line is obscured by the expected line i.e. it is a perfect match. Also, I labelled the charts as runs 1 through 5, but they are actually just runs where there was an improvement i.e. more runs were needed. That said, convergence seemed to happen pretty quickly all things considered i.e. sometimes sub second and no more than 2 seconds or 20 runs.
 
@@ -680,15 +680,15 @@ loop(
 
 Doing this constrains the search space and means that each execution is quick i.e. no slow down over time. With pruning I found the number of runs varied from 50-200, but that the time to execute floated around the 2 second mark on average. Here are some more charts:
 
-![Third degree polynomial run 1](ThirdDegreePolynomialRun1.png "Third degree polynomial run 1")
+![Third degree polynomial run 1](https://assets.mattroberts.io/img/ThirdDegreePolynomialRun1.png "Third degree polynomial run 1")
 
-![Third degree polynomial run 3](ThirdDegreePolynomialRun3.png "Third degree polynomial run 3")
+![Third degree polynomial run 3](https://assets.mattroberts.io/img/ThirdDegreePolynomialRun3.png "Third degree polynomial run 3")
 
-![Third degree polynomial run 5](ThirdDegreePolynomialRun5.png "Third degree polynomial run 5")
+![Third degree polynomial run 5](https://assets.mattroberts.io/img/ThirdDegreePolynomialRun5.png "Third degree polynomial run 5")
 
-![Third degree polynomial run 8](ThirdDegreePolynomialRun8.png "Third degree polynomial run 8")
+![Third degree polynomial run 8](https://assets.mattroberts.io/img/ThirdDegreePolynomialRun8.png "Third degree polynomial run 8")
 
-![Third degree polynomial run 10](ThirdDegreePolynomialRun10.png "Third degree polynomial run 10")
+![Third degree polynomial run 10](https://assets.mattroberts.io/img/ThirdDegreePolynomialRun10.png "Third degree polynomial run 10")
 
 ### Final thoughts
 
