@@ -165,11 +165,11 @@ def random[T](elements: IndexedSeq[T]): T = {
 }
 ```
 
-> The `full` function resides in an object named `GP`. I omit the following "boiler plate" when discussing methods in that object:
+The `full` function resides in an object named `GP`. I omit the following "boiler plate" when discussing methods in that object:
 
-> ###### GP.scala
+###### GP.scala
 
->```scala
+```scala
 import scala.annotation.tailrec
 import scala.collection.immutable._
 import scala.util.Random
